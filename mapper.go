@@ -2,14 +2,13 @@ package copier
 
 import (
 	"database/sql"
-	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
 )
 
 type Option struct {
 	ignoreEmpty bool
-	overwrite   bool
+	overwrite   bool // slice not support overwrite, will panic
 }
 
 func NewOption() *Option {
@@ -63,11 +62,9 @@ func (m *mapper) copy(toValue, fromValue interface{}) error {
 
 func (m *mapper) copyValue(to, from reflect.Value) error {
 	m.converterRepository.amount++
-
 	if !from.IsValid() {
 		return nil
 	}
-
 	if from.Kind() == reflect.Ptr && to.Kind() == reflect.Ptr && from.IsNil() {
 		to.Set(reflect.Zero(to.Type()))
 		return nil
@@ -91,7 +88,6 @@ func (m *mapper) convertSlice(from reflect.Value, toType reflect.Type) (reflect.
 	for i := 0; i < amount; i++ {
 		source := from.Index(i)
 
-		fmt.Printf("convertSlice[%d](%+v -> %+v)", i, source, destType)
 		dest, err := m.convert(source, reflect.ValueOf(nil), indirectType(destType))
 		if err != nil {
 			return to, err
@@ -163,18 +159,23 @@ func (m *mapper) convert(from, to reflect.Value, toType reflect.Type) (reflect.V
 	if !from.IsValid() {
 		return reflect.Zero(toType), nil
 	}
-
 	if converter := m.converterRepository.Get(Target{To: toType, From: from.Type()}); converter != nil {
 		return converter(from, toType)
 
-	} else if from.Type().ConvertibleTo(toType) {
+	} else if from.Type().ConvertibleTo(toType) && m.converterRepository.amount > 0 {
 		return from.Convert(toType), nil
 
 	} else if m.canScan(toType) {
 		return m.scan(from, toType)
 
-	} else if from.Kind() == reflect.Ptr {
-		return m.convert(from.Elem(), to, toType)
+	} else if from.Kind() == reflect.Ptr || to.Kind() == reflect.Ptr {
+		if from.Kind() == reflect.Ptr && to.Kind() == reflect.Ptr {
+			return m.convert(from.Elem(), to.Elem(), toType)
+		} else if from.Kind() == reflect.Ptr {
+			return m.convert(from.Elem(), to, toType)
+		} else {
+			return m.convert(from, to.Elem(), toType)
+		}
 
 	} else if from.Kind() == reflect.Struct && toType.Kind() == reflect.Struct {
 		return m.convertStruct(from, to, toType)

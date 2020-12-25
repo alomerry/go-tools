@@ -21,7 +21,6 @@ type Mapper interface {
 	RegisterTransformer(transformer Transformer) Mapper
 
 	Install(Module) Mapper
-
 }
 
 type Module func(Mapper)
@@ -91,7 +90,7 @@ func indirect(reflectValue reflect.Value) reflect.Value {
 }
 
 func indirectType(reflectType reflect.Type) reflect.Type {
-	for reflectType.Kind() == reflect.Ptr || reflectType.Kind() == reflect.Slice {
+	for reflectType.Kind() == reflect.Ptr {
 		reflectType = reflectType.Elem()
 	}
 	return reflectType
