@@ -2,6 +2,7 @@ package copier
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
 )
@@ -73,7 +74,9 @@ func (m *mapper) copyValue(to, from reflect.Value) error {
 	if m.shouldCopy(to, from) {
 		v, err := m.convert(indirect(from), indirect(to), indirectType(to.Type()))
 		if err != nil {
-			return err
+			indirectAsNonNil(to).Set(reflect.New(indirectType(to.Type())).Elem())
+			fmt.Printf("can't convert data %+v -> %+v\n", indirect(from), indirectType(to.Type()))
+			return nil
 		}
 		indirectAsNonNil(to).Set(v)
 	}
