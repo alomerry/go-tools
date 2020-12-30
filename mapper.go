@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
+	"strings"
 )
 
 type Option struct {
@@ -12,8 +13,15 @@ type Option struct {
 	overwrite   bool // slice not support overwrite, will panic
 }
 
+type copyOption struct {
+	needCheckLevel *bool
+}
+
 func NewOption() *Option {
-	return new(Option)
+	return &Option{
+		ignoreEmpty: false,
+		overwrite:   true,
+	}
 }
 
 func (o *Option) SetOverwrite(overwrite bool) *Option {
@@ -33,7 +41,7 @@ func Instance(option *Option) Mapper {
 			overwrite:   true,
 		}
 	} else {
-
+		// empty
 	}
 	return &mapper{
 		converterRepository: newConverterRepository(option),
@@ -62,16 +70,15 @@ func (m *mapper) copy(toValue, fromValue interface{}) error {
 }
 
 func (m *mapper) copyValue(to, from reflect.Value) error {
-	m.converterRepository.amount++
+	m.converterRepository.level++
 	if !from.IsValid() {
 		return nil
 	}
-	if from.Kind() == reflect.Ptr && to.Kind() == reflect.Ptr && from.IsNil() {
-		to.Set(reflect.Zero(to.Type()))
-		return nil
-	}
-
 	if m.shouldCopy(to, from) {
+		if from.Kind() == reflect.Ptr && to.Kind() == reflect.Ptr && from.IsNil() {
+			to.Set(reflect.Zero(to.Type()))
+			return nil
+		}
 		v, err := m.convert(indirect(from), indirect(to), indirectType(to.Type()))
 		if err != nil {
 			indirectAsNonNil(to).Set(reflect.New(indirectType(to.Type())).Elem())
@@ -80,6 +87,7 @@ func (m *mapper) copyValue(to, from reflect.Value) error {
 		}
 		indirectAsNonNil(to).Set(v)
 	}
+	m.converterRepository.level--
 	return nil
 }
 
@@ -114,8 +122,37 @@ func (m *mapper) namesFromDiffFields(field reflect.StructField) []string {
 	}
 }
 
+func (m *mapper) handleMultiLevelFields(from, to reflect.Value) {
+	needCheckLevel := false
+	option := copyOption{needCheckLevel: &needCheckLevel}
+	for originKey, targetKeys := range m.converterRepository.diffFieldsMapper {
+		for _, targetKey := range targetKeys {
+			if strings.Contains(originKey, ".") || strings.Contains(targetKey, ".") {
+				target, origin := getValueByFiledName(to, targetKey), getValueByFiledName(from, originKey)
+				if m.shouldCopy(target, origin, option) {
+					var value reflect.Value
+					var err error
+					if transformerMethod, ok := m.converterRepository.transformer[targetKey]; ok {
+						f := reflect.ValueOf(transformerMethod)
+						result := f.Call(
+							[]reflect.Value{origin},
+						)
+						value, err = m.convert(result[0], target, target.Type(), option)
+					} else {
+						value, err = m.convert(origin, target, target.Type(), option)
+					}
+					if err != nil {
+						panic(err)
+					}
+					target.Set(value)
+				}
+			}
+		}
+	}
+}
+
 func (m *mapper) convertStruct(from, to reflect.Value, toType reflect.Type) (reflect.Value, error) {
-	if m.converterRepository.overwrite {
+	if m.needOverwrite(from) || !to.IsValid() {
 		to = reflect.New(toType).Elem()
 	}
 	toFields := asNamesToFieldMap(deepFields(to.Type()))
@@ -148,24 +185,48 @@ func (m *mapper) convertStruct(from, to reflect.Value, toType reflect.Type) (ref
 		}
 	}
 
+	// 处理多级
+	if m.converterRepository.level == 0 {
+		m.handleMultiLevelFields(from, to)
+	}
+
 	return to, nil
 }
 
-func (m *mapper) shouldCopy(toValue, fromValue reflect.Value) bool {
-	if m.converterRepository.amount > 0 && (m.converterRepository.ignoreEmpty && fromValue.IsZero() || !m.converterRepository.overwrite && !toValue.IsZero()) {
+func (m *mapper) shouldCopy(toValue, fromValue reflect.Value, options ...copyOption) bool {
+	if m.checkLevel(options...) && (m.converterRepository.ignoreEmpty && fromValue.IsZero() || !m.converterRepository.overwrite && !toValue.IsZero()) {
 		return false
 	}
 	return true
 }
 
-func (m *mapper) convert(from, to reflect.Value, toType reflect.Type) (reflect.Value, error) {
+func (m *mapper) needOverwrite(fromValue reflect.Value) bool {
+	if m.converterRepository.level > 0 && !fromValue.IsZero() && m.converterRepository.overwrite {
+		return true
+	}
+	return false
+}
+
+func (m *mapper) checkLevel(options ...copyOption) bool {
+	var option *copyOption
+	if len(options) > 0 {
+		option = &options[0]
+	}
+	if option != nil && !*option.needCheckLevel {
+		return true
+	}
+
+	return m.converterRepository.level > 0
+}
+
+func (m *mapper) convert(from, to reflect.Value, toType reflect.Type, options ...copyOption) (reflect.Value, error) {
 	if !from.IsValid() {
 		return reflect.Zero(toType), nil
 	}
 	if converter := m.converterRepository.Get(Target{To: toType, From: from.Type()}); converter != nil {
 		return converter(from, toType)
 
-	} else if from.Type().ConvertibleTo(toType) && m.converterRepository.amount > 0 {
+	} else if from.Type().ConvertibleTo(toType) && m.checkLevel(options...) {
 		return from.Convert(toType), nil
 
 	} else if m.canScan(toType) {
@@ -270,7 +331,8 @@ type converterRepository struct {
 	transformer      map[string]interface{}
 	ignoreEmpty      bool
 	overwrite        bool
-	amount           int
+	level            int
+	lastLevel        int
 }
 
 func newConverterRepository(option *Option) *converterRepository {
@@ -280,7 +342,8 @@ func newConverterRepository(option *Option) *converterRepository {
 		transformer:      make(map[string]interface{}),
 		ignoreEmpty:      option.ignoreEmpty,
 		overwrite:        option.overwrite,
-		amount:           -1,
+		level:            -1,
+		lastLevel:        -1,
 	}
 }
 
@@ -296,4 +359,24 @@ func (r *converterRepository) Get(target Target) Converter {
 		}
 	}
 	return nil
+}
+
+func getValueByFiledName(value reflect.Value, name string) reflect.Value {
+	if strings.ContainsAny(name, ".") {
+		firstKey := strings.Split(name, ".")[0]
+		name = strings.Join(append(strings.Split(name, ".")[1:]), ".")
+		return getValueByFiledName(getValueByFiledName(value, firstKey), name)
+	} else {
+		switch value.Kind() {
+		case reflect.Ptr:
+			if value.IsNil() {
+				return reflect.Zero(value.Type())
+			}
+			return value.Elem().FieldByName(name)
+		case reflect.Struct:
+			return value.FieldByName(name)
+		default:
+			panic(fmt.Sprintf("not support get value from type[%s] by key[%s]", value.Kind(), name))
+		}
+	}
 }

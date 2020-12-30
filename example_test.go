@@ -254,3 +254,74 @@ func TestTransformerModelToProto(t *testing.T) {
 		Location:   nil,
 	}, targets[1])
 }
+
+func TestCopyModelToProtoWithMultiLevelAndTransformer(t *testing.T) {
+	type Age struct {
+		Value int
+	}
+	type OriginCityInfo struct {
+		Age  Age
+		Area float64
+	}
+	type TargetCityInfo struct {
+		Age  Age
+		Name string
+	}
+	type OriginLocation struct {
+		City     string
+		CityInfo OriginCityInfo
+	}
+	type originModel struct {
+		Name     string
+		Location OriginLocation
+	}
+	type TargetLocation struct {
+		City         string
+		CityName     string
+		CityNickName string
+		CityInfo     TargetCityInfo
+	}
+	type targetModel struct {
+		Name string
+		Loc  *TargetLocation
+	}
+
+	var targets []targetModel
+	origins := []originModel{
+		{
+			Name: "MockModel",
+			Location: OriginLocation{
+				City: "ShangHai",
+				CityInfo: OriginCityInfo{
+					Age:  Age{Value: 1},
+					Area: 1,
+				},
+			},
+		},
+	}
+	assert.Nil(t, Instance(nil).RegisterTransformer(map[string]interface{}{
+		"Loc.CityNickName": func(city string) string {
+			return "Transformer city nick name"
+		},
+		"Loc.CityInfo.Age": func(city Age) Age {
+			city.Value++
+			return city
+		},
+	}).RegisterResetDiffField([]DiffFieldPair{
+		{Origin: "Location", Targets: []string{"Loc"}},
+		{Origin: "Location.City", Targets: []string{"Loc.CityName", "Loc.CityNickName"}},
+		{Origin: "Location.CityInfo.Age", Targets: []string{"Loc.CityInfo.Age"}},
+	}).From(origins).CopyTo(&targets))
+
+	assert.Equal(t, targetModel{
+		Name: "MockModel",
+		Loc: &TargetLocation{
+			City:         "ShangHai",
+			CityName:     "ShangHai",
+			CityNickName: "Transformer city nick name",
+			CityInfo: TargetCityInfo{
+				Age: Age{Value: 2},
+			},
+		},
+	}, targets[0])
+}
