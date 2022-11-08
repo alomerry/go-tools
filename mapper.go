@@ -4,13 +4,19 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
+	"golang.org/x/net/context"
 	"reflect"
 	"strings"
+	"unsafe"
 )
 
 type Option struct {
-	ignoreEmpty bool
-	overwrite   bool // slice not support overwrite, will panic
+	ignoreEmpty                bool
+	overwrite                  bool // slice not support overwrite, will panic
+	overwriteOriginalCopyField bool
+	context                    context.Context
+	skipUnsuited               bool
+	copyUnexported             bool
 }
 
 type copyOption struct {
@@ -19,13 +25,33 @@ type copyOption struct {
 
 func NewOption() *Option {
 	return &Option{
-		ignoreEmpty: false,
-		overwrite:   true,
+		ignoreEmpty:                false,
+		overwrite:                  true,
+		skipUnsuited:               true,
+		overwriteOriginalCopyField: false,
+		context:                    context.Background(),
 	}
+}
+
+func NewOptionWithContext(ctx context.Context) *Option {
+	option := NewOption()
+	option.context = ctx
+	return option
 }
 
 func (o *Option) SetOverwrite(overwrite bool) *Option {
 	o.overwrite = overwrite
+	return o
+}
+
+// SetCopyUnexported 未导出字段是否拷贝
+func (o *Option) SetCopyUnexported(copyUnexported bool) *Option {
+	o.copyUnexported = copyUnexported
+	return o
+}
+
+func (o *Option) SetSkipUnsuited(skipUnsuited bool) *Option {
+	o.skipUnsuited = skipUnsuited
 	return o
 }
 
@@ -34,18 +60,39 @@ func (o *Option) SetIgnoreEmpty(ignoreEmpty bool) *Option {
 	return o
 }
 
+func (o *Option) SetOverwriteOriginalCopyField(overwriteOriginalCopyField bool) *Option {
+	o.overwriteOriginalCopyField = overwriteOriginalCopyField
+	return o
+}
+
+func (o *Option) SetContext(ctx context.Context) *Option {
+	o.context = ctx
+	return o
+}
+
 func Instance(option *Option) Mapper {
 	if option == nil {
-		option = &Option{
-			ignoreEmpty: false,
-			overwrite:   true,
-		}
+		option = NewOption()
 	} else {
 		// empty
 	}
-	return &mapper{
+	mapper := &mapper{
 		converterRepository: newConverterRepository(option),
 	}
+	return mapper.Install(RFC3339Convertor)
+}
+
+func InstanceWithContext(ctx context.Context, option *Option) Mapper {
+	if option == nil {
+		option = NewOptionWithContext(ctx)
+	} else {
+		// empty
+		option.context = ctx
+	}
+	mapper := &mapper{
+		converterRepository: newConverterRepository(option),
+	}
+	return mapper.Install(RFC3339Convertor)
 }
 
 type mapper struct {
@@ -80,10 +127,12 @@ func (m *mapper) copyValue(to, from reflect.Value) error {
 			return nil
 		}
 		v, err := m.convert(indirect(from), indirect(to), indirectType(to.Type()))
+
 		if err != nil {
 			indirectAsNonNil(to).Set(reflect.New(indirectType(to.Type())).Elem())
-			fmt.Printf("can't convert data %+v -> %+v\n", indirect(from), indirectType(to.Type()))
-			return nil
+			if !m.converterRepository.skipUnsuited {
+				return errors.New(fmt.Sprintf("can't convert data %+v -> %+v\n", indirect(from), indirectType(to.Type())))
+			}
 		}
 		indirectAsNonNil(to).Set(v)
 	}
@@ -134,10 +183,20 @@ func (m *mapper) handleMultiLevelFields(from, to reflect.Value) {
 					var err error
 					if transformerMethod, ok := m.converterRepository.transformer[targetKey]; ok {
 						f := reflect.ValueOf(transformerMethod)
-						result := f.Call(
-							[]reflect.Value{origin},
-						)
-						value, err = m.convert(result[0], target, target.Type(), option)
+						if isFuncSuitable(origin.Type(), f.Type().In(0)) {
+							var result []reflect.Value
+							unAddArgs := []reflect.Value{origin, reflect.ValueOf(originKey), target, reflect.ValueOf(targetKey)}
+							args := []reflect.Value{}
+							index := 0
+							for index < f.Type().NumIn() {
+								args = append(args, unAddArgs[index])
+								index++
+							}
+							result = f.Call(
+								args,
+							)
+							value, err = m.convert(result[0], target, target.Type(), option)
+						}
 					} else {
 						value, err = m.convert(origin, target, target.Type(), option)
 					}
@@ -151,34 +210,60 @@ func (m *mapper) handleMultiLevelFields(from, to reflect.Value) {
 	}
 }
 
+// 是否参数一致，不一致无法调用
+func isFuncSuitable(originValueType, funcFirstArgType reflect.Type) bool {
+	return funcFirstArgType.Kind() == reflect.Interface || funcFirstArgType.ConvertibleTo(originValueType)
+}
+
 func (m *mapper) convertStruct(from, to reflect.Value, toType reflect.Type) (reflect.Value, error) {
 	if m.needOverwrite(from) || !to.IsValid() {
 		to = reflect.New(toType).Elem()
 	}
 	toFields := asNamesToFieldMap(deepFields(to.Type()))
 
-	copied := make(map[string]struct{})
-
 	for _, fromField := range deepFields(from.Type()) {
+		if _, ok := m.converterRepository.ignoreOriginalCopyField[FieldKey(fromField.Name)]; ok {
+			continue
+		}
 		if fromValue := from.FieldByName(fromField.Name); fromValue.IsValid() {
 			names := m.namesFromDiffFields(fromField)
 			for _, name := range names {
-				if toField, found := toFields[name]; found {
-					if _, ok := copied[toField.Name]; !ok {
-						if toValue := to.FieldByName(toField.Name); toValue.IsValid() && toValue.CanSet() {
-							if transformerMethod, ok := m.converterRepository.transformer[toField.Name]; ok {
-								f := reflect.ValueOf(transformerMethod)
-								result := f.Call(
-									[]reflect.Value{fromValue},
+				toField, found := toFields[name]
+				if found {
+					if m.needIgnoreBySetting(FieldKey(toField.Name)) {
+						continue
+					}
+					toValue := to.FieldByName(toField.Name)
+					if toValue.IsValid() {
+						switch {
+						case toValue.CanSet():
+						case (!toValue.CanSet() || !from.CanInterface()) && m.converterRepository.copyUnexported:
+							toValue = reflect.NewAt(toValue.Type(), unsafe.Pointer(toValue.UnsafeAddr())).Elem()
+							fromValue = reflect.NewAt(fromValue.Type(), unsafe.Pointer(fromValue.UnsafeAddr())).Elem()
+						default:
+							continue
+						}
+						if transformerMethod, ok := m.converterRepository.transformer[toField.Name]; ok {
+							f := reflect.ValueOf(transformerMethod)
+							if isFuncSuitable(fromValue.Type(), f.Type().In(0)) {
+								var result []reflect.Value
+								unAddArgs := []reflect.Value{fromValue, reflect.ValueOf(fromField.Name), toValue, reflect.ValueOf(toField.Name)}
+								args := []reflect.Value{}
+								index := 0
+								for index < f.Type().NumIn() {
+									args = append(args, unAddArgs[index])
+									index++
+								}
+								result = f.Call(
+									args,
 								)
 								if err := m.copyValue(toValue, result[0]); err != nil {
 									return to, err
 								}
-							} else if err := m.copyValue(toValue, fromValue); err != nil {
-								return to, err
 							}
+						} else if err := m.copyValue(toValue, fromValue); err != nil {
+							return to, err
 						}
-						copied[toField.Name] = struct{}{}
 					}
 				}
 			}
@@ -198,6 +283,11 @@ func (m *mapper) shouldCopy(toValue, fromValue reflect.Value, options ...copyOpt
 		return false
 	}
 	return true
+}
+
+func (m *mapper) needIgnoreBySetting(key FieldKey) bool {
+	_, needIgnore := m.converterRepository.ignoreTargetFieldKeys[key]
+	return needIgnore
 }
 
 func (m *mapper) needOverwrite(fromValue reflect.Value) bool {
@@ -294,9 +384,27 @@ func (m *mapper) RegisterConverter(matcher TypeMatcher, converter Converter) Map
 	return m
 }
 
+func (m *mapper) RegisterIgnoreTargetFields(targetFieldKeys []FieldKey) Mapper {
+	m.converterRepository.ignoreTargetFieldKeys = map[FieldKey]struct{}{}
+	for _, s := range targetFieldKeys {
+		m.converterRepository.ignoreTargetFieldKeys[s] = struct{}{}
+	}
+	return m
+}
+
 func (m *mapper) RegisterResetDiffField(diffFields []DiffFieldPair) Mapper {
 	for _, diffField := range diffFields {
 		m.converterRepository.diffFieldsMapper[diffField.Origin] = diffField.Targets
+		if m.converterRepository.overwriteOriginalCopyField {
+			if m.converterRepository.ignoreOriginalCopyField == nil {
+				m.converterRepository.ignoreOriginalCopyField = make(map[FieldKey]struct{})
+			}
+			for _, target := range diffField.Targets {
+				if target != diffField.Origin {
+					m.converterRepository.ignoreOriginalCopyField[FieldKey(target)] = struct{}{}
+				}
+			}
+		}
 	}
 	return m
 }
@@ -326,24 +434,34 @@ type converterPair struct {
 }
 
 type converterRepository struct {
-	converters       []converterPair
-	diffFieldsMapper map[string][]string
-	transformer      map[string]interface{}
-	ignoreEmpty      bool
-	overwrite        bool
-	level            int
-	lastLevel        int
+	converters                 []converterPair
+	diffFieldsMapper           map[string][]string
+	transformer                map[string]interface{}
+	ignoreTargetFieldKeys      map[FieldKey]struct{}
+	overwriteOriginalCopyField bool
+	ignoreOriginalCopyField    map[FieldKey]struct{}
+	copyUnexported             bool
+	context                    context.Context
+	skipUnsuited               bool
+	ignoreEmpty                bool
+	overwrite                  bool
+	level                      int
+	lastLevel                  int
 }
 
 func newConverterRepository(option *Option) *converterRepository {
 	return &converterRepository{
-		converters:       nil,
-		diffFieldsMapper: make(map[string][]string),
-		transformer:      make(map[string]interface{}),
-		ignoreEmpty:      option.ignoreEmpty,
-		overwrite:        option.overwrite,
-		level:            -1,
-		lastLevel:        -1,
+		converters:                 nil,
+		diffFieldsMapper:           make(map[string][]string),
+		transformer:                make(map[string]interface{}),
+		ignoreEmpty:                option.ignoreEmpty,
+		overwrite:                  option.overwrite,
+		context:                    option.context,
+		skipUnsuited:               option.skipUnsuited,
+		overwriteOriginalCopyField: option.overwriteOriginalCopyField,
+		copyUnexported:             option.copyUnexported,
+		level:                      -1,
+		lastLevel:                  -1,
 	}
 }
 

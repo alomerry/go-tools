@@ -9,6 +9,8 @@ type Converter func(from reflect.Value, toType reflect.Type) (reflect.Value, err
 
 type Transformer map[string]interface{}
 
+type FieldKey string
+
 type Mapper interface {
 	From(fromValue interface{}) CopyCommand
 
@@ -17,6 +19,8 @@ type Mapper interface {
 	RegisterConverterFunc(matcher TypeMatcherFunc, converter Converter) Mapper
 
 	RegisterResetDiffField(diffFields []DiffFieldPair) Mapper
+
+	RegisterIgnoreTargetFields(targetFieldKeys []FieldKey) Mapper
 
 	RegisterTransformer(transformer Transformer) Mapper
 
