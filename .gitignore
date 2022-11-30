@@ -1,0 +1,6 @@
+public/
+main
+config/core.toml
+.idea/
+.vscode/
+.fleet/

@@ -1,0 +1,7 @@
+oss-provider = ["qiniu"]
+oss-object-prefix = "prefix"
+
+[oss-qiniu]
+bucket = "xxx"
+access-key = "xxx"
+sercet-key = "xxx"
