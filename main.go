@@ -107,7 +107,7 @@ func upsertFile(relatePath string, d fs.DirEntry, err error) error {
 	if d.IsDir() {
 		return nil
 	}
-	if relatePath == ".oss_pusher_hash" || strings.HasSuffix(relatePath, ".toml") {
+	if needIgnore(relatePath) {
 		return nil
 	}
 	hash, err := utils.FileMD5(fmt.Sprintf("%s/%s", dirPath, relatePath))
@@ -147,6 +147,21 @@ func deleteFile() error {
 		fmt.Printf("删除文件[%v]到 oss\n", key)
 	}
 	return nil
+}
+
+func needIgnore(filepath string) bool {
+	if filepath == ".oss_pusher_hash" {
+		return true
+	}
+
+	if strings.HasSuffix(filepath, ".toml") {
+		return true
+	}
+
+	if strings.HasSuffix(filepath, ".DS_Store") {
+		return true
+	}
+	return false
 }
 
 func writeCache(dirPath string) error {
