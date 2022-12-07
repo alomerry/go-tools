@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -150,9 +151,17 @@ func deleteFile() error {
 
 func writeCache(dirPath string) error {
 	resultBuilder := &strings.Builder{}
-	for key, hash := range resultHashMapper {
-		resultBuilder.WriteString(fmt.Sprintf("%s[@]%s\n", key, hash))
+	// 按文件名排序写入，防止文件频繁变更
+	keys := make([]string, 0, len(resultHashMapper))
+	for key := range resultHashMapper {
+		keys = append(keys, key)
 	}
+
+	sort.Strings(keys)
+	for i := range keys {
+		resultBuilder.WriteString(fmt.Sprintf("%s[@]%s\n", keys[i], resultHashMapper[keys[i]]))
+	}
+
 	cacheFile := fmt.Sprintf("%s/%s", dirPath, share.CACHE_FILE_NAME)
 	err := os.WriteFile(cacheFile, []byte(resultBuilder.String()), os.FileMode(0777))
 	if err != nil {

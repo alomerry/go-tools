@@ -4,3 +4,5 @@ config/core.toml
 .idea/
 .vscode/
 .fleet/
+
+**/*.DS_Store
