@@ -44,7 +44,7 @@ func getCacheHashMap(cachePath string) map[string]string {
 	cacheFile := fmt.Sprintf("%s/%s", cachePath, share.CACHE_FILE_NAME)
 	_, err := os.Stat(cacheFile)
 	if err != nil && os.IsNotExist(err) {
-		return hashCacheMapper
+		panic(".oss_pusher_hash not exists")
 	} else {
 		file, err := os.OpenFile(cacheFile, os.O_RDONLY, 0)
 		if err != nil {
