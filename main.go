@@ -12,6 +12,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"sort"
 	"strings"
 )
@@ -29,6 +31,9 @@ var (
 	resultHashMapper map[string]string
 	dirPath          string
 	ossPrefix        string
+
+	cpuProfile = "cpu.profile" // write cpu profile
+	memProfile = "mem.profile" // write memory profile
 )
 
 func init() {
@@ -77,8 +82,7 @@ func loadConfig() {
 	viper.BindPFlag("configPath", pflag.Lookup("configPath"))
 	pflag.Parse()
 
-	ct := fmt.Sprintf("%s/%s", share.ExPath, strings.TrimPrefix(strings.TrimPrefix(viper.GetString("configPath"), share.ExPath), "/"))
-	viper.SetConfigFile(ct)
+	viper.SetConfigFile(fmt.Sprintf("%s/%s", share.ExPath, strings.TrimPrefix(strings.TrimPrefix(viper.GetString("configPath"), share.ExPath), "/")))
 	err := viper.MergeInConfig()
 	if err != nil {
 		panic(err)
@@ -87,7 +91,39 @@ func loadConfig() {
 	ossPrefix = viper.GetString("oss-object-prefix")
 }
 
+func pprofProfile() func() {
+	return func() {
+		if strings.HasSuffix(cpuProfile, ".profile") {
+			f, err := os.Create(fmt.Sprintf("%s/pprof/%s", share.ExPath, cpuProfile))
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+			if err := pprof.StartCPUProfile(f); err != nil {
+				panic(err)
+			}
+			defer pprof.StopCPUProfile()
+		}
+
+		if strings.HasSuffix(memProfile, ".profile") {
+			defer func() {
+				f, err := os.Create(fmt.Sprintf("%s/pprof/%s", share.ExPath, memProfile))
+				if err != nil {
+					panic(err)
+				}
+				defer f.Close()
+				runtime.GC() // get up-to-date statistics
+				if err := pprof.WriteHeapProfile(f); err != nil {
+					panic(err)
+				}
+			}()
+		}
+	}
+}
+
 func main() {
+	pprofProfile()
+
 	loadConfig()
 	// 获取
 	hashCacheMapper = getCacheHashMap(dirPath)
