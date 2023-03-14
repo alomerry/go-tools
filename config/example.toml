@@ -1,4 +1,17 @@
-oss-provider = ["qiniu"]
+modes=[ "pusher", "syncer" ]
+
+# 检查文件变动间隔（秒）
+interval = 1
+
+[local]
+path = "xxxx"
+
+[remote]
+path = "xxxx"
+
+
+[pusher]
+oss-provider = "qiniu"
 oss-object-prefix = "prefix"
 
 [oss-qiniu]

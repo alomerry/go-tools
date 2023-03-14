@@ -9,27 +9,47 @@ import (
 	"golang.org/x/net/context"
 )
 
+var kodo Kodo
+
+func init() {
+	kodo = Kodo{
+		accessKey: cast.ToString(viper.GetStringMap("oss-qiniu")["access-key"]),
+		secretKey: cast.ToString(viper.GetStringMap("oss-qiniu")["sercet-key"]),
+		bucket:    cast.ToString(viper.GetStringMap("oss-qiniu")["bucket"]),
+	}
+}
+
+type Kodo struct {
+	accessKey string
+	secretKey string
+	bucket    string
+	client    *qbox.Mac
+}
+
+func (k Kodo) getClient() *qbox.Mac {
+	if k.client != nil {
+		return k.client
+	}
+	return qbox.NewMac(k.accessKey, k.secretKey)
+}
+
 // 自定义返回值结构体
 type PutRet struct {
 	Key string
 }
 
+func GetKodoClient() Kodo {
+	return kodo
+}
+
 // - /Users/alomerry/workspace/OSSPusher/public/.oss_pusher_hash
 // - blog/.oss_pusher_hash
-func Push(filePath, key string) (string, error) {
-	var (
-		accessKey = cast.ToString(viper.GetStringMap("oss-qiniu")["access-key"])
-		secretKey = cast.ToString(viper.GetStringMap("oss-qiniu")["sercet-key"])
-		bucket    = cast.ToString(viper.GetStringMap("oss-qiniu")["bucket"])
-		ossKey    = key
-	)
-
+func (k Kodo) PutFile(filePath, ossKey string) (string, error) {
 	putPolicy := storage.PutPolicy{
-		Scope:      fmt.Sprintf("%s:%s", bucket, ossKey), // 覆盖写入
+		Scope:      fmt.Sprintf("%s:%s", k.bucket, ossKey), // 覆盖写入
 		ReturnBody: `{"key":"$(key)"}`,
 	}
-	mac := qbox.NewMac(accessKey, secretKey)
-	upToken := putPolicy.UploadToken(mac)
+	upToken := putPolicy.UploadToken(k.getClient())
 
 	cfg := storage.Config{}
 	formUploader := storage.NewFormUploader(&cfg)
