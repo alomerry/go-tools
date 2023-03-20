@@ -6,3 +6,5 @@ config/core.toml
 .fleet/
 
 **/*.DS_Store
+/pprof/
+main_test.go

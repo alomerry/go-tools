@@ -1,4 +1,4 @@
-module github.com/alomerry/OSSPusher
+module github.com/alomerry/go-pusher
 
 go 1.19
 

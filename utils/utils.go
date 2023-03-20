@@ -16,3 +16,12 @@ func FileMD5(filePath string) (string, error) {
 	_, _ = io.Copy(hash, file)
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
+
+func IndexOfArray[T string](item T, array []T) int {
+	for i := range array {
+		if item == array[i] {
+			return i
+		}
+	}
+	return -1
+}
