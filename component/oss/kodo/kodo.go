@@ -9,9 +9,30 @@ import (
 	"golang.org/x/net/context"
 )
 
-var kodo Kodo
+const (
+	ridHuadong          = "z0"            // 华东
+	ridHuadongZheJiang2 = "cn-east-2"     // 华东浙江 2 区
+	ridHuabei           = "z1"            // 华北
+	ridHuanan           = "z2"            // 华南
+	ridNorthAmerica     = "na0"           // 北美
+	ridSingapore        = "as0"           // 新加坡
+	ridFogCnEast1       = "fog-cn-east-1" // 亚太首尔 1 区
+)
 
-func init() {
+var (
+	kodo Kodo
+)
+
+type Kodo struct {
+	accessKey string
+	secretKey string
+	bucket    string
+	region    string
+
+	client *qbox.Mac
+}
+
+func InitKodo() {
 	kodo = Kodo{
 		accessKey: cast.ToString(viper.GetStringMap("oss-qiniu")["access-key"]),
 		secretKey: cast.ToString(viper.GetStringMap("oss-qiniu")["sercet-key"]),
@@ -19,11 +40,8 @@ func init() {
 	}
 }
 
-type Kodo struct {
-	accessKey string
-	secretKey string
-	bucket    string
-	client    *qbox.Mac
+func GetKodoClient() Kodo {
+	return kodo
 }
 
 func (k Kodo) getClient() *qbox.Mac {
@@ -33,17 +51,6 @@ func (k Kodo) getClient() *qbox.Mac {
 	return qbox.NewMac(k.accessKey, k.secretKey)
 }
 
-// 自定义返回值结构体
-type PutRet struct {
-	Key string
-}
-
-func GetKodoClient() Kodo {
-	return kodo
-}
-
-// - /Users/alomerry/workspace/OSSPusher/public/.oss_pusher_hash
-// - blog/.oss_pusher_hash
 func (k Kodo) PutFile(filePath, ossKey string) (string, error) {
 	putPolicy := storage.PutPolicy{
 		Scope:      fmt.Sprintf("%s:%s", k.bucket, ossKey), // 覆盖写入
@@ -51,7 +58,10 @@ func (k Kodo) PutFile(filePath, ossKey string) (string, error) {
 	}
 	upToken := putPolicy.UploadToken(k.getClient())
 
-	cfg := storage.Config{}
+	region, _ := storage.GetRegionByID(storage.RegionID(k.region))
+	cfg := storage.Config{
+		Region: &region,
+	}
 	formUploader := storage.NewFormUploader(&cfg)
 	ret := PutRet{}
 	putExtra := storage.PutExtra{

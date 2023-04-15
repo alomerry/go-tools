@@ -1,49 +1,47 @@
 # go-pusher
 
-English | [简体中文](README_ZH.md)
+go-pusher 是一个可以帮助您上传文件到 OSS 并定期将其备份到 VPS 上的工具
 
-go-pusher is a tool that can help you upload files to oss and backup file to vps regularly.
+## 要求
 
-## Requirements
+- `Go 1.20` 及以上
 
-- `Go 1.20` and above.
+## 功能
 
-## Features
+- [x] 上传指定目录下 OSS 中不存在或和 OSS 中不一致的文件
+- [ ] 定时备份本地文件到 VPS 上
 
-- [x] upload file to OSS if the file does not exist in OSS or the file in OSS is different from the local file
-- [ ] backup local file to VPS regularly
+## 使用
 
-## Usage
-
-- build bin
+- 构建二进制文件
 
   `go build main.go`
 
-- add execute permission
+- 添加可执行权限
 
   `chmod +x ./main`
 
-- run with config
+- 通过配置文件运行
 
-  `./main -configPath "Your config file abstract path"`
+  `./main -configPath "配置文件绝对路径"`
 
-## Config file
+## 配置文件
 
-Config file is like following:
+以下是配置的内容：
 
 ```toml
 modes = ["pusher", "syncer"]
 
 [syncer]
-# local directory abstract path
+# 本地绝对路径
 local-path = "xxx"
-# remote directory abstract path
+# 绝对路径
 remote-path = "xxx"
-# time to check file change(second)
+# 检查文件变动间隔（秒）
 interval = 1
 
 [pusher]
-# oss provider( now support: qiniu)
+# oss
 oss-provider = "qiniu"
 # 待推送目录对应 oss 的前缀
 oss-object-prefix = "blog/public"
@@ -63,6 +61,6 @@ access-key = "xxx"
 sercet-key = "xxx"
 ```
 
-## why cretea go-pusher
+## 为什么写了 go-pusher
 
 ## [LICENSE](LICENSE)

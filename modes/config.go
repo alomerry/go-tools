@@ -2,6 +2,7 @@ package modes
 
 import (
 	"fmt"
+	"github.com/alomerry/go-pusher/component/oss"
 	"github.com/alomerry/go-pusher/modes/pusher"
 	"github.com/alomerry/go-pusher/share"
 	"github.com/spf13/viper"
@@ -15,32 +16,35 @@ type config struct {
 	tasks []Task
 }
 
-func initConfig(ctx context.Context) *config {
-	config := initConfigFile()
+func initConfig(_ context.Context) *config {
+	conf := initConfigFile()
 
-	config.modes = viper.GetStringSlice("modes")
-	for _, mode := range config.modes {
+	conf.modes = viper.GetStringSlice("modes")
+	for _, mode := range conf.modes {
 		var task Task
 		switch mode {
 		case share.MODE_PUSHER:
-			task = pusher.Pusher{}
+			oss.InitOSS()
+			task = &pusher.Pusher{}
 		case share.MODE_SYNCER:
-			//task = syncer.Syncer{}
+			//task = &syncer.Syncer{}
 		}
 		task.InitConfig()
-		config.tasks = append(config.tasks, task)
+		conf.tasks = append(conf.tasks, task)
 	}
-	return config
+	return conf
 }
 
 func initConfigFile() *config {
 	var (
 		rawPath    = viper.GetString("configPath")
-		configPath = fmt.Sprintf("%s/%s", share.ExPath, strings.TrimPrefix(strings.TrimPrefix(rawPath, share.ExPath), "/"))
+		configPath string
 	)
+
+	configPath = fmt.Sprintf("%s/%s", share.ExPath, strings.TrimPrefix(strings.TrimPrefix(rawPath, share.ExPath), "/"))
+
 	viper.SetConfigFile(configPath)
-	err := viper.MergeInConfig()
-	if err != nil {
+	if err := viper.MergeInConfig(); err != nil {
 		panic(err)
 	}
 	return &config{}

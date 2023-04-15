@@ -1,9 +1,11 @@
 module github.com/alomerry/go-pusher
 
-go 1.19
+go 1.20
 
 require (
 	github.com/qiniu/go-sdk/v7 v7.13.0
+	github.com/spf13/cast v1.5.0
+	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 )
@@ -16,9 +18,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.5 // indirect
 	github.com/spf13/afero v1.9.2 // indirect
-	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.4.1 // indirect
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect

@@ -1,42 +1,24 @@
 package utils
 
 import (
-	"github.com/spf13/cast"
-	"github.com/spf13/viper"
+	"github.com/alomerry/go-pusher/share"
 	"io/fs"
 	"os"
 	"time"
 )
 
-var (
-	CWatcher *Watcher
-)
-
 type Watcher struct {
-	conf   *config
+	share.WatcherGetter
 	ticker *time.Ticker
 }
 
-type config struct {
-	localPath  string
-	remotePath string
-	interval   time.Duration
-}
-
-func init() {
-	CWatcher = &Watcher{
-		conf: &config{
-			localPath:  cast.ToString(viper.GetStringMap("local")["path"]),
-			remotePath: cast.ToString(viper.GetStringMap("remote")["path"]),
-			interval:   time.Second * time.Duration(viper.GetInt64("interval")),
-		},
-	}
-	CWatcher.ticker = time.NewTicker(CWatcher.conf.interval)
+func GenWatcher(conf share.WatcherGetter) *Watcher {
+	return &Watcher{conf, time.NewTicker(conf.GetInterval())}
 }
 
 func (w *Watcher) Watch() {
 	w.ticker.Stop()
-	w.ticker.Reset(CWatcher.conf.interval)
+	w.ticker.Reset(w.GetInterval())
 	for {
 		<-w.ticker.C
 		go w.Walk()
@@ -44,7 +26,7 @@ func (w *Watcher) Watch() {
 }
 
 func (w *Watcher) Walk() {
-	fs.WalkDir(os.DirFS(w.conf.localPath), ".", upsertFile)
+	fs.WalkDir(os.DirFS(w.GetLocalPath()), ".", upsertFile)
 }
 
 func upsertFile(relatePath string, d fs.DirEntry, err error) error {

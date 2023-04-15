@@ -11,6 +11,10 @@ const (
 	MODE_PUSHER = "pusher"
 	MODE_SYNCER = "syncer"
 
+	TASK_STATUS_PROCESSING = "processing"
+	TASK_STATUS_DONE       = "done"
+	TASK_STATUS_PENDING    = "pending"
+
 	OSS_PROVIDER_QI_NIU = "qiniu"
 )
 

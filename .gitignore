@@ -8,3 +8,4 @@ config/core.toml
 **/*.DS_Store
 /pprof/
 main_test.go
+/core.toml

@@ -1,20 +1,29 @@
-modes=[ "pusher", "syncer" ]
+modes = ["pusher", "syncer"]
 
+[syncer]
+# 本地绝对路径
+local-path = "xxx"
+# 绝对路径
+remote-path = "xxx"
 # 检查文件变动间隔（秒）
 interval = 1
 
-[local]
-path = "xxxx"
-
-[remote]
-path = "xxxx"
-
-
 [pusher]
+# oss
 oss-provider = "qiniu"
-oss-object-prefix = "prefix"
+# 待推送目录对应 oss 的前缀
+oss-object-prefix = "blog/public"
+# 推送到 oss 超时时间（秒）
+push-timeout = 60
+# 本地待检测文件夹绝对路径
+local-directory = "/path/to/push"
+# 是否和本地强一致，即本地不存在的文件会从 oss 中删除
+oss-delete-not-exists = false
 
 [oss-qiniu]
 bucket = "xxx"
+# 存储区域
+# 华东 z0、华东浙江 2 区 cn-east-2、华北 z1、华南 z2、北美 na0、新加坡 as0、亚太首尔 1 区 fog-cn-east-1（详见 https://developer.qiniu.com/kodo/1238/go）
+region = "ZoneHuadong"
 access-key = "xxx"
 sercet-key = "xxx"
