@@ -3,12 +3,6 @@ package pusher
 import (
 	"bufio"
 	"fmt"
-	"github.com/alomerry/go-pusher/component/oss"
-	"github.com/alomerry/go-pusher/share"
-	"github.com/alomerry/go-pusher/utils"
-	"github.com/spf13/cast"
-	"github.com/spf13/viper"
-	"golang.org/x/net/context"
 	"io"
 	"io/fs"
 	"os"
@@ -16,6 +10,13 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/alomerry/go-pusher/component/oss"
+	"github.com/alomerry/go-pusher/share"
+	"github.com/alomerry/go-pusher/utils"
+	"github.com/spf13/cast"
+	"github.com/spf13/viper"
+	"golang.org/x/net/context"
 )
 
 type Pusher struct {
@@ -168,14 +169,18 @@ func (p *Pusher) upsertFile(relatePath string, d fs.DirEntry, err error) error {
 }
 
 func (p *Pusher) tryDelNotExistsFile() error {
-	needDelNotExists := viper.GetBool(cast.ToString(viper.GetStringMap("pusher")["oss-delete-not-exists"]))
+	needDelNotExists := cast.ToBool(viper.GetStringMap("pusher")["oss-delete-not-exists"])
+	var batchDeleteKeys []string
 	for key := range p.hashCacheMapper {
 		if needDelNotExists {
-			// ossFilePath := fmt.Sprintf("%s/%s", p.ossPrefix, key)
-			// oss.Client.Delete(ossFilePath)
+			ossFilePath := fmt.Sprintf("%s/%s", p.ossPrefix, key)
+			batchDeleteKeys = append(batchDeleteKeys, ossFilePath)
 		}
+	}
 
-		fmt.Printf("删除文件[%v]到 oss\n", key)
+	if len(batchDeleteKeys) > 0 {
+		oss.Client.Delete(batchDeleteKeys)
+		fmt.Printf("从 oss 中删除文件:\n  - %v ", strings.Join(batchDeleteKeys, "\n  - "))
 	}
 	return nil
 }
@@ -202,7 +207,12 @@ func (p *Pusher) writeCache(dirPath string) error {
 	for key := range p.resultHashMapper {
 		keys = append(keys, key)
 	}
-
+	needDelNotExists := cast.ToBool(viper.GetStringMap("pusher")["oss-delete-not-exists"])
+	for key := range p.hashCacheMapper {
+		if !needDelNotExists {
+			keys = append(keys, key)
+		}
+	}
 	sort.Strings(keys)
 	for i := range keys {
 		resultBuilder.WriteString(fmt.Sprintf("%s[@]%s\n", keys[i], p.resultHashMapper[keys[i]]))

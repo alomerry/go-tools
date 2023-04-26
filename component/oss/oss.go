@@ -1,11 +1,12 @@
 package oss
 
 import (
+	"sync"
+
 	"github.com/alomerry/go-pusher/component/oss/kodo"
 	"github.com/alomerry/go-pusher/share"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
-	"sync"
 )
 
 var (
@@ -19,6 +20,7 @@ type OSSClient struct {
 
 type OSS interface {
 	Push(filePath, key string) (string, error)
+	Delete(keys []string) error
 }
 
 func InitOSS() {
@@ -48,4 +50,16 @@ func (o OSSClient) Push(filePath, key string) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func (o OSSClient) Delete(keys []string) error {
+	for _, provider := range o.providers {
+		switch provider {
+		case share.OSS_PROVIDER_QI_NIU:
+			return kodo.GetKodoClient().DeleteFiles(keys)
+		default:
+			panic(share.OSSNotSupport)
+		}
+	}
+	return nil
 }

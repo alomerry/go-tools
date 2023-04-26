@@ -1,7 +1,9 @@
 package kodo
 
 import (
+	"errors"
 	"fmt"
+
 	"github.com/qiniu/go-sdk/v7/auth/qbox"
 	"github.com/qiniu/go-sdk/v7/storage"
 	"github.com/spf13/cast"
@@ -29,7 +31,8 @@ type Kodo struct {
 	bucket    string
 	region    string
 
-	client *qbox.Mac
+	client        *qbox.Mac
+	bucketManager *storage.BucketManager
 }
 
 func InitKodo() {
@@ -48,7 +51,16 @@ func (k Kodo) getClient() *qbox.Mac {
 	if k.client != nil {
 		return k.client
 	}
-	return qbox.NewMac(k.accessKey, k.secretKey)
+	k.client = qbox.NewMac(k.accessKey, k.secretKey)
+	return k.client
+}
+
+func (k Kodo) getBucketManager() *storage.BucketManager {
+	if k.bucketManager != nil {
+		return k.bucketManager
+	}
+	k.bucketManager = storage.NewBucketManager(k.getClient(), &storage.Config{})
+	return k.bucketManager
 }
 
 func (k Kodo) PutFile(filePath, ossKey string) (string, error) {
@@ -72,4 +84,32 @@ func (k Kodo) PutFile(filePath, ossKey string) (string, error) {
 		return "", err
 	}
 	return ret.Key, nil
+}
+
+func (k Kodo) DeleteFiles(ossKeys []string) error {
+	deleteOptions := make([]string, 0, len(ossKeys))
+	for _, key := range ossKeys {
+		deleteOptions = append(deleteOptions, storage.URIDelete(k.bucket, key))
+	}
+
+	rets, err := k.getBucketManager().Batch(deleteOptions)
+	if len(rets) == 0 {
+		// 处理错误
+		if e, ok := err.(*storage.ErrorInfo); ok {
+			return errors.New(fmt.Sprintf("batch error, code:%v", e.Code))
+		} else {
+			return err
+		}
+	}
+	var errs []error
+	for _, ret := range rets {
+		// 200 为成功
+		if ret.Code != 200 {
+			errs = append(errs, errors.New(ret.Data.Error))
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
