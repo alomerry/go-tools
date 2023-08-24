@@ -31,7 +31,7 @@ func setIdSourceDelayReason(mapper map[string]string) {
 			if reason, ok := mapper[id]; ok {
 				basicReason, err := getSimpleReason(reason)
 				if err != nil {
-					fmt.Printf("%v\n单号：%v\n", err.Error(), id)
+					fmt.Printf("%v id:[%v] reason:[%v]\n", err.Error(), id, reason)
 				}
 				r.GetCell(reasonIndex).SetString(basicReason)
 			} else {
@@ -47,7 +47,7 @@ func setIdSourceDelayReason(mapper map[string]string) {
 
 func getDelayId2Reason() map[string]string {
 	var mapper = make(map[string]string)
-	delaySource, err := xlsx.OpenFile("/home/user/workspace/tools-delay-reason/delay数据源.xlsx")
+	delaySource, err := xlsx.OpenFile("./delay数据源.xlsx")
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +70,7 @@ func getSimpleReason(str string) (string, error) {
 
 	if strings.ContainsAny(str, "CUTTING 原因") || strings.ContainsAny(str, "CUTTING原因") ||
 		strings.ContainsAny(str, "SVHC 制样原因") || strings.ContainsAny(str, "SVHC制样原因") || strings.ContainsAny(str, "SVHC制样 原因") ||
-		strings.ContainsAny(str, "仪器故障") || strings.ContainsAny(str, "收样晚") || strings.ContainsAny(str, "晚收") || strings.ContainsAny(str, "未收") {
+		strings.ContainsAny(str, "仪器故障") || strings.ContainsAny(str, "收样晚") || strings.ContainsAny(str, "晚收") || strings.ContainsAny(str, "未收") || strings.ContainsAny(str, "走总镉") || strings.ContainsAny(str, "九楼") {
 		return "内部原因", nil
 	}
 	if strings.ContainsAny(str, "已出") || strings.ContainsAny(str, "已完成") || str == "" {
@@ -82,7 +82,13 @@ func getSimpleReason(str string) (string, error) {
 	if strings.ContainsAny(str, "数据确认") || strings.ContainsAny(str, "延单") {
 		return "数据确认", nil
 	}
-	return "", errors.New("按照广州delay.txt  未匹配到")
+	if strings.ContainsAny(str, "cancel") || strings.ContainsAny(str, "Cancel") {
+		return "数据确认", nil
+	}
+	if strings.ContainsAny(str, "正常流转") {
+		return "非化学delay", nil
+	}
+	return "", errors.New("原因关键词未匹配到")
 }
 
 // r := gin.Default()
