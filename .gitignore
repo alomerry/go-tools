@@ -1,5 +1,7 @@
 .idea
 
+output
+
 *.txt
 *.xlsx
 *.exe
