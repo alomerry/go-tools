@@ -5,6 +5,7 @@ import (
 	"github.com/alomerry/sgs-tools/utils"
 	"github.com/emirpasic/gods/stacks"
 	"github.com/emirpasic/gods/stacks/arraystack"
+	"github.com/spf13/cast"
 	"github.com/tealeg/xlsx/v3"
 	"os"
 	"strings"
@@ -68,7 +69,6 @@ func (da *da) clearHold() {
 		}
 		if r.GetCell(xlsx.ColLettersToIndex("I")).Value == "Y" {
 			del.Push(r.GetCoordinate())
-			da.sheet.RemoveRowAtIndex(r.GetCoordinate())
 		}
 		return nil
 	})
@@ -162,9 +162,32 @@ func (sl *starlims) mergeDa(da *xlsx.Sheet) {
 			return nil
 		})
 		return nil
-	}, xlsx.SkipEmptyRows)
+	})
 	sl.dataSource.File.Save(slims_path)
 	sl.file.Sync()
+}
+
+func (sl *starlims) getLogicJCell(rowIdx int) string {
+	var (
+		row, _       = sl.logic.Row(rowIdx)
+		jCellFormula = row.GetCell(xlsx.ColLettersToIndex("J")).Formula() // IF((I2<0)*AND(I2>-10000),"C","S")
+		eCellVal     = sl.getLogicEorCValue(row, "E")                     //  数据源!AB2
+		cCellVal     = sl.getLogicEorCValue(row, "C")
+		delay        = eCellVal - cCellVal // E2-C2
+	)
+	if !strings.HasPrefix(jCellFormula, "IF") {
+		panic(fmt.Sprintf("invalid formula: [%v]", jCellFormula))
+	}
+
+	if delay < 0 && delay > -10000 {
+		return "C"
+	} else {
+		return "S"
+	}
+}
+
+func (sl *starlims) getLogicEorCValue(row *xlsx.Row, rolX string) float64 {
+	return cast.ToFloat64(utils.GetCellValueBySheet(row.GetCell(xlsx.ColLettersToIndex(rolX)), sl.logic))
 }
 
 func (sl *starlims) getLogicS() []*xlsx.Row {
@@ -172,10 +195,10 @@ func (sl *starlims) getLogicS() []*xlsx.Row {
 		rows []*xlsx.Row
 	)
 	sl.logic.ForEachRow(func(r *xlsx.Row) error {
-		if r.GetCoordinate() != 0 && r.GetCell(xlsx.ColLettersToIndex("J")).Value == "S" {
+		// IF((I?<0)*AND(I?>-10000),"C","S")
+		if r.GetCoordinate() != 0 && sl.getLogicJCell(r.GetCoordinate()) == "S" {
 			rows = append(rows, r)
 		}
-
 		return nil
 	})
 	return rows
