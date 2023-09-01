@@ -1,5 +1,9 @@
 # sgs
 
+## build
+
+`CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ./output/bin/sgs-delay-summary main.go && upx ./output/bin/sgs-delay-summary`
+
 ## delay reason
 
 ### 数据源

@@ -6,17 +6,17 @@ import (
 	"github.com/emirpasic/gods/stacks"
 	"github.com/emirpasic/gods/stacks/arraystack"
 	"github.com/spf13/cast"
-	"github.com/tealeg/xlsx/v3"
+	xlsx "github.com/tealeg/xlsx/v3"
 	"os"
 	"strings"
 )
 
 var (
-	da_path     = "/home/user/workspace/sgs-tools/output/delay-summary/8.17A.xlsx"
-	db_path     = "/home/user/workspace/sgs-tools/output/delay-summary/8.17B.xlsx"
-	out_path    = "/home/user/workspace/sgs-tools/output/delay-summary/2023-08-17_未出数据.xlsx"
-	slims_path  = "/home/user/workspace/sgs-tools/output/delay-summary/starlims delay.xlsx"
-	result_path = "/home/user/workspace/sgs-tools/output/delay-summary/result.xlsx"
+	da_path     = "./A.xlsx"
+	db_path     = "./B.xlsx"
+	out_path    = "./未出数据.xlsx"
+	slims_path  = "./starlims delay.xlsx"
+	result_path = "./result.xlsx"
 )
 
 func DoDelaySummary() {
