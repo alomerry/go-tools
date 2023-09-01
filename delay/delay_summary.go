@@ -1,40 +1,66 @@
 package delay
 
 import (
+	"encoding/csv"
 	"fmt"
 	"github.com/alomerry/sgs-tools/utils"
 	"github.com/emirpasic/gods/stacks"
 	"github.com/emirpasic/gods/stacks/arraystack"
 	"github.com/spf13/cast"
 	xlsx "github.com/tealeg/xlsx/v3"
+	"io"
+	"log"
 	"os"
+	"regexp"
 	"strings"
 )
 
 var (
-	da_path     = "./A.xlsx"
-	db_path     = "./B.xlsx"
-	out_path    = "./未出数据.xlsx"
-	slims_path  = "./starlims delay.xlsx"
-	result_path = "./result.xlsx"
+	root_path   = "."
+	da_key      = "A.xlsx"
+	db_key      = "B.xlsx"
+	out_key     = "_未出数据.csv"
+	slims_key   = "starlims"
+	result_name = "Starlims Delay%s.%s.xlsx" // Starlims Delay8.18.xlsx
+	dateReg     = regexp.MustCompile(`202\d-\d\d-\d\d`)
 )
 
-func DoDelaySummary() {
-	da, db, out, slims := getDataSource()
+func DoDelaySummaryMulti() {
+	entries, err := os.ReadDir(root_path)
+	if err != nil {
+		panic(err)
+	}
+	done := make(map[string]struct{})
+	for _, entry := range entries {
+		if dateReg.MatchString(entry.Name()) {
+			date := dateReg.FindString(entry.Name())
+			if _, ok := done[date]; !ok {
+				do(date)
+				done[date] = struct{}{}
+			}
+		}
+	}
+}
+
+func do(date string) {
+	log.Default().Printf("start to handle date [%s]......\n", date)
+	da, db, dc, slims := getDataSource(date)
 	da.clearHold()
 	slims.mergeDa(da.sheet)
 	slims.mergeLogic2Report(slims.getLogicS())
 	slims.mergeSortedB(db.getSortedB())
 	slims.modifyReportAndSheet3()
-	slims.mergeOut(out.getOut())
+	slims.mergeOut(dc.getOut())
 	slims.modifyReport()
-	genNewResult(slims.report)
+	genNewResult(slims.report, date)
+	log.Default().Printf("date [%s] done.\n", date)
 }
 
-func genNewResult(sheet *xlsx.Sheet) {
+func genNewResult(sheet *xlsx.Sheet, date string) {
 	var (
-		file   *xlsx.File
-		result *xlsx.Sheet
+		file       *xlsx.File
+		result     *xlsx.Sheet
+		resultName string
 	)
 	file = xlsx.NewFile()
 	file.AddSheet("报表")
@@ -47,7 +73,15 @@ func genNewResult(sheet *xlsx.Sheet) {
 		})
 		return nil
 	})
-	err := file.Save(result_path)
+	resultName = fmt.Sprintf("%s/%s", root_path, result_name)
+	if date != "" {
+		var (
+			mon = strings.TrimPrefix(strings.Split(date, "-")[1], "0")
+			day = strings.Split(date, "-")[2]
+		)
+		resultName = fmt.Sprintf("%s/%s", root_path, fmt.Sprintf(result_name, mon, day))
+	}
+	err := file.Save(resultName)
 	if err != nil {
 		panic(err)
 	}
@@ -78,7 +112,7 @@ func (da *da) clearHold() {
 		da.sheet.RemoveRowAtIndex(idx.(int))
 	}
 
-	da.sheet.File.Save(da_path)
+	da.sheet.File.Save(da.file.Name())
 	da.file.Sync()
 }
 
@@ -124,22 +158,32 @@ func (db *db) getSortedB() []*xlsx.Row {
 	return rows
 }
 
-type out struct {
-	file  *os.File
-	sheet *xlsx.Sheet
+type dc struct {
+	file *os.File
+	date string
 }
 
-func (ot *out) getOut() []*xlsx.Row {
+func (dc *dc) getOut() [][]string {
 	var (
-		rows []*xlsx.Row
+		reader = csv.NewReader(dc.file)
+		idx    = 0
+		result [][]string
 	)
-	ot.sheet.ForEachRow(func(r *xlsx.Row) error {
-		if r.GetCoordinate() != 0 {
-			rows = append(rows, r)
+
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
 		}
-		return nil
-	})
-	return rows
+		if err != nil {
+			panic(err)
+		}
+		if idx != 0 {
+			result = append(result, record)
+		}
+		idx++
+	}
+	return result
 }
 
 type starlims struct {
@@ -163,7 +207,7 @@ func (sl *starlims) mergeDa(da *xlsx.Sheet) {
 		})
 		return nil
 	})
-	sl.dataSource.File.Save(slims_path)
+	sl.dataSource.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
 
@@ -214,7 +258,7 @@ func (sl *starlims) mergeLogic2Report(logicRows []*xlsx.Row) {
 			return nil
 		})
 	}
-	sl.report.File.Save(slims_path)
+	sl.report.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
 
@@ -224,7 +268,7 @@ func (sl *starlims) mergeSortedB(rows []*xlsx.Row) {
 		row.AddCell().SetString(rows[i].GetCell(xlsx.ColLettersToIndex("A")).Value)
 		row.AddCell().SetString(rows[i].GetCell(xlsx.ColLettersToIndex("S")).Value)
 	}
-	sl.sheet3.File.Save(slims_path)
+	sl.sheet3.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
 
@@ -256,20 +300,19 @@ func (sl *starlims) modifyReportAndSheet3() {
 		sl.report.RemoveRowAtIndex(idx.(int))
 	}
 
-	sl.report.File.Save(slims_path)
+	sl.report.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
 
-func (sl *starlims) mergeOut(rows []*xlsx.Row) {
+func (sl *starlims) mergeOut(rows [][]string) {
 	for i := range rows {
 		row := sl.outReason.AddRow()
-		row.AddCell().SetString(fmt.Sprintf("%s%s", rows[i].GetCell(xlsx.ColLettersToIndex("A")).Value, rows[i].GetCell(xlsx.ColLettersToIndex("E")).Value))
-		rows[i].ForEachCell(func(c *xlsx.Cell) error {
-			row.AddCell().SetString(c.Value)
-			return nil
-		})
+		row.AddCell().SetString(fmt.Sprintf("%s%s", rows[i][xlsx.ColLettersToIndex("A")], rows[i][xlsx.ColLettersToIndex("E")]))
+		for j := range rows[i] {
+			row.AddCell().SetString(rows[i][j])
+		}
 	}
-	sl.outReason.File.Save(slims_path)
+	sl.outReason.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
 
@@ -318,56 +361,86 @@ func (sl *starlims) modifyReport() {
 		sl.report.RemoveRowAtIndex(idx.(int))
 	}
 
-	sl.report.File.Save(slims_path)
+	sl.report.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
 
-func getDataSource() (*da, *db, *out, *starlims) {
-	return getDA(), getDB(), getOut(), getStarlims()
-}
-
-func getDA() *da {
-	f, err := os.Open(da_path)
+func getDataSource(date string) (*da, *db, *dc, *starlims) {
+	var (
+		da *da
+		db *db
+		dc = &dc{}
+		sl *starlims
+	)
+	entries, err := os.ReadDir(root_path)
 	if err != nil {
 		panic(err)
 	}
-	a, err := xlsx.OpenFile(da_path)
+	for _, entry := range entries {
+		if date != "" {
+			if strings.Contains(entry.Name(), date) || strings.Contains(entry.Name(), slims_key) {
+				goto START
+			}
+			var (
+				mon   = strings.TrimPrefix(strings.Split(date, "-")[1], "0")
+				day   = strings.Split(date, "-")[2]
+				sDate = fmt.Sprintf("%s.%s", mon, day)
+			)
+			if strings.Contains(entry.Name(), sDate) {
+				goto START
+			}
+			continue
+		}
+	START:
+		path := fmt.Sprintf("%s/%s", root_path, entry.Name())
+		switch {
+		case strings.Contains(entry.Name(), da_key):
+			da = getDA(path)
+		case strings.Contains(entry.Name(), db_key):
+			db = getDB(path)
+		case strings.Contains(entry.Name(), out_key):
+			dc.file, err = os.Open(path)
+			if err != nil {
+				panic(err)
+			}
+			dc.date = dateReg.FindString(entry.Name())
+		case strings.Contains(entry.Name(), slims_key):
+			sl = getStarlims(path)
+		}
+	}
+	return da, db, dc, sl
+}
+
+func getDA(filePath string) *da {
+	f, err := os.Open(filePath)
+	if err != nil {
+		panic(err)
+	}
+	a, err := xlsx.OpenFile(filePath)
 	if err != nil {
 		panic(err)
 	}
 	return &da{f, a.Sheets[0]}
 }
 
-func getDB() *db {
-	f, err := os.Open(db_path)
+func getDB(filePath string) *db {
+	f, err := os.Open(filePath)
 	if err != nil {
 		panic(err)
 	}
-	b, err := xlsx.OpenFile(db_path)
+	b, err := xlsx.OpenFile(filePath)
 	if err != nil {
 		panic(err)
 	}
 	return &db{f, b.Sheets[0]}
 }
 
-func getOut() *out {
-	f, err := os.Open(out_path)
+func getStarlims(filePath string) *starlims {
+	f, err := os.Open(filePath)
 	if err != nil {
 		panic(err)
 	}
-	o, err := xlsx.OpenFile(out_path)
-	if err != nil {
-		panic(err)
-	}
-	return &out{f, o.Sheets[0]}
-}
-
-func getStarlims() *starlims {
-	f, err := os.Open(slims_path)
-	if err != nil {
-		panic(err)
-	}
-	sls, err := xlsx.OpenFile(slims_path)
+	sls, err := xlsx.OpenFile(filePath)
 	if err != nil {
 		panic(err)
 	}
