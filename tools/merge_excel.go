@@ -6,18 +6,19 @@ import (
 	"github.com/alomerry/sgs-tools/utils"
 	"github.com/tealeg/xlsx/v3"
 	"io"
+	"log"
 	"os"
 	"strings"
 )
 
 var (
-	root_path = "/Users/alomerry/workspace/sgs-tools/output"
+	root_path = "."
 )
 
 func DoMergeExcelSheets() {
 	var (
-		sheets []*xlsx.Sheet
-		files  []*os.File
+		fileNames []string
+		files     []*os.File
 	)
 	entries, err := os.ReadDir(root_path)
 	if err != nil {
@@ -30,11 +31,7 @@ func DoMergeExcelSheets() {
 		}
 		fileName := fmt.Sprintf("%s/%s", root_path, entry.Name())
 		if strings.HasSuffix(entry.Name(), "xlsx") {
-			f, err := xlsx.OpenFile(fileName)
-			if err != nil {
-				panic(err)
-			}
-			sheets = append(sheets, f.Sheets[0])
+			fileNames = append(fileNames, fileName)
 		} else {
 			f, err := os.Open(fileName)
 			if err != nil {
@@ -44,38 +41,45 @@ func DoMergeExcelSheets() {
 		}
 	}
 
-	if len(sheets) > 0 {
-		genNewMergeResult(sheets)
+	if len(fileNames) > 0 {
+		iterateAndMerge(fileNames)
 	} else {
 		genNewMergeCSVResult(files)
 	}
 
 }
 
-func genNewMergeResult(sheets []*xlsx.Sheet) {
+func iterateAndMerge(fileNames []string) {
 	var (
 		file *xlsx.File
 	)
 	file = xlsx.NewFile()
 	sheet, _ := file.AddSheet("result")
-	for i := range sheets {
-		row := sheet.AddRow()
-		sheets[i].ForEachRow(func(r *xlsx.Row) error {
+	for i, fileName := range fileNames {
+		f, err := xlsx.OpenFile(fileName)
+		if err != nil {
+			panic(err)
+		}
+		s := f.Sheets[0]
+		initMaxRow(s, 0)
+		s.ForEachRow(func(r *xlsx.Row) error {
 			if i > 0 && r.GetCoordinate() == 0 {
 				return nil
 			}
+			row := sheet.AddRow()
 			r.ForEachCell(func(c *xlsx.Cell) error {
 				utils.SetCellValueToSheet(c, row.AddCell(), nil)
 				return nil
 			})
 			return nil
 		})
+		fmt.Printf("%s merge rows: [%d] now:[%d]\n", fileName, s.MaxRow, sheet.MaxRow)
 	}
-
 	err := file.Save(fmt.Sprintf("%s/%s", root_path, "合并结果.xlsx"))
 	if err != nil {
 		panic(err)
 	}
+	log.Default().Println("合并完成！")
 }
 
 func genNewMergeCSVResult(files []*os.File) {
@@ -121,4 +125,30 @@ func getCSVSheet(file *os.File, needFirstRow bool) [][]string {
 		idx++
 	}
 	return result
+}
+
+func initMaxRow(sheet *xlsx.Sheet, noNilCol int) {
+	var (
+		count = 0
+		end   = false
+	)
+	sheet.ForEachRow(func(r *xlsx.Row) error {
+		if r.GetCell(noNilCol).Value != "" {
+			count++
+		}
+		if end {
+			return nil
+		}
+		var (
+			last, _ = sheet.Row(r.GetCoordinate() - 1)
+			next, _ = sheet.Row(r.GetCoordinate() + 1)
+		)
+		if last != nil && last.GetCell(noNilCol).Value != "" {
+			if next != nil && next.GetCell(noNilCol).Value == "" {
+				end = true
+			}
+		}
+		return nil
+	})
+	sheet.MaxRow = count
 }
