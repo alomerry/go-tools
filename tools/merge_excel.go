@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	root_path = "."
+	root_path = "/Users/alomerry/workspace/sgs-tools/output"
 )
 
 func DoMergeExcelSheets() {

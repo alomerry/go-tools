@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	root_path   = "."
+	root_path   = "/Users/alomerry/workspace/sgs-tools/output"
 	da_key      = "A.xlsx"
 	db_key      = "B.xlsx"
 	out_key     = "_未出数据.csv"
@@ -464,6 +464,7 @@ func getStarlims(filePath string) *starlims {
 	clearSheet(res.report)
 	clearSheet(res.sheet3)
 	clearSheet(res.outReason)
+	sls.Save(filePath)
 	return res
 }
 

@@ -19,7 +19,14 @@ func SetCellValueToSheet(oldCell, newCell *xlsx.Cell, sheet *xlsx.Sheet) {
 			panic(formula)
 		}
 	case xlsx.CellTypeNumeric:
-		newCell.SetNumeric(oldCell.Value) // ?
+		formula := oldCell.Formula()
+		if len(strings.Split(formula, "!")) >= 2 {
+			x, y, _ := xlsx.GetCoordsFromCellIDString(strings.Split(formula, "!")[1])
+			row, _ := sheet.File.Sheet[strings.Split(formula, "!")[0]].Row(y)
+			SetCellValueToSheet(row.GetCell(x), newCell, sheet)
+		} else {
+			newCell.SetNumeric(oldCell.Value)
+		}
 	case xlsx.CellTypeBool:
 		newCell.SetBool(oldCell.Bool())
 	case xlsx.CellTypeInline:
