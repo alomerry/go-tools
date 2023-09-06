@@ -2,10 +2,6 @@
 
 go-pusher 是一个可以帮助您上传文件到 OSS 并定期将其备份到 VPS 上的工具
 
-## 要求
-
-- `Go 1.20` 及以上
-
 ## 功能
 
 - [x] 上传指定目录下 OSS 中不存在或和 OSS 中不一致的文件
@@ -62,5 +58,3 @@ sercet-key = "xxx"
 ```
 
 ## 为什么写了 go-pusher
-
-## [LICENSE](../LICENSE)
