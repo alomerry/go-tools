@@ -13,6 +13,15 @@ config/core.toml
 /pprof/
 /core.toml
 
+.DS_Store
+
+output
+
+*.txt
+*.xlsx
+*.exe
+
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
