@@ -12,3 +12,10 @@ config/core.toml
 **/*.DS_Store
 /pprof/
 /core.toml
+.DS_Store
+
+output
+
+*.txt
+*.xlsx
+*.exe
