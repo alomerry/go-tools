@@ -1,4 +1,14 @@
 .idea
+.vscode/
+.fleet/
+
 domain.toml
-main
 dns-tools
+
+public/
+config/core.toml
+
+
+**/*.DS_Store
+/pprof/
+/core.toml
