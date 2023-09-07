@@ -1,9 +1,10 @@
-package dns
+package impl
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/alomerry/go-tools/dns/internal"
 	"log"
 	"net/http"
 )
@@ -140,7 +141,7 @@ func (cf *Cloudflare) request(method string, url string, data interface{}, resul
 	req.Header.Set("Authorization", "Bearer "+cf.Secret)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req)
+	resp, err := internal.Client.Do(req)
 	err = getHTTPResponse(resp, url, err, result)
 
 	return

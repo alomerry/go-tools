@@ -3,7 +3,7 @@ package tools
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/alomerry/sgs-tools/utils"
+	"github.com/alomerry/go-tools/sgs/utils"
 	"github.com/tealeg/xlsx/v3"
 	"io"
 	"log"
@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	root_path = "/Users/alomerry/workspace/sgs-tools/output"
+	root_path = "."
 )
 
 func DoMergeExcelSheets() {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/alomerry/go-pusher/modes"
+	"github.com/alomerry/go-tools/pusher/modes"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"

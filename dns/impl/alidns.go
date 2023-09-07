@@ -1,4 +1,4 @@
-package dns
+package impl
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"github.com/alomerry/go-tools/dns/internal"
 	"hash"
 	"io"
 	"log"
@@ -105,7 +106,7 @@ func (ali *Alidns) create(domain string) {
 
 func (ali *Alidns) modify(recordSelected AlidnsRecord, domain string) {
 	if recordSelected.Value == ali.NewAddr {
-		log.Printf("你的IP %s 没有变化, 域名 %s", ali.NewAddr, domain)
+		log.Printf("你的 IP %s 没有变化，域名 %s", ali.NewAddr, domain)
 		return
 	}
 
@@ -121,7 +122,7 @@ func (ali *Alidns) modify(recordSelected AlidnsRecord, domain string) {
 	err := ali.request(params, &result)
 
 	if err == nil && result.RecordID != "" {
-		log.Printf("更新域名解析 %s 成功！IP: %s", domain, ali.NewAddr)
+		log.Printf("更新域名解析 %s 成功！IP：%s", domain, ali.NewAddr)
 	} else {
 		log.Printf("更新域名解析 %s 失败！", domain)
 	}
@@ -139,11 +140,11 @@ func (ali *Alidns) request(params url.Values, result interface{}) (err error) {
 	req.URL.RawQuery = params.Encode()
 
 	if err != nil {
-		log.Println("http.NewRequest失败. Error: ", err)
+		log.Println("http.NewRequest 失败  Error：", err)
 		return
 	}
 
-	resp, err := client.Do(req)
+	resp, err := internal.Client.Do(req)
 	err = getHTTPResponse(resp, alidnsEndpoint, err, result)
 
 	return

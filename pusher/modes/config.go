@@ -2,12 +2,13 @@ package modes
 
 import (
 	"fmt"
-	"github.com/alomerry/go-pusher/component/oss"
-	"github.com/alomerry/go-pusher/modes/pusher"
-	"github.com/alomerry/go-pusher/share"
+	"strings"
+
+	"github.com/alomerry/go-tools/pusher/component/oss"
+	"github.com/alomerry/go-tools/pusher/modes/pusher"
+	"github.com/alomerry/go-tools/pusher/share"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
-	"strings"
 )
 
 type config struct {
@@ -16,8 +17,8 @@ type config struct {
 	tasks []Task
 }
 
-func initConfig(_ context.Context) *config {
-	conf := initConfigFile()
+func initConfig(_ context.Context, configPath string) *config {
+	conf := initConfigFile(configPath)
 
 	conf.modes = viper.GetStringSlice("modes")
 	for _, mode := range conf.modes {
@@ -35,10 +36,9 @@ func initConfig(_ context.Context) *config {
 	return conf
 }
 
-func initConfigFile() *config {
+func initConfigFile(configPath string) *config {
 	var (
-		rawPath    = viper.GetString("configPath")
-		configPath string
+		rawPath = viper.GetString("configPath")
 	)
 
 	configPath = fmt.Sprintf("%s/%s", share.ExPath, strings.TrimPrefix(strings.TrimPrefix(rawPath, share.ExPath), "/"))

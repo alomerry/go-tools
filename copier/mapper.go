@@ -1,10 +1,10 @@
 package copier
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"github.com/pkg/errors"
-	"golang.org/x/net/context"
 	"reflect"
 	"strings"
 	"unsafe"

@@ -14,8 +14,8 @@ type Client struct {
 	config *config
 }
 
-func (c *Client) Init(ctx context.Context) *Client {
-	c.config = initConfig(ctx)
+func (c *Client) Init(ctx context.Context, configPath string) *Client {
+	c.config = initConfig(ctx, configPath)
 	return c
 }
 

@@ -1,11 +1,12 @@
 package syncer
 
 import (
-	"github.com/alomerry/go-pusher/utils"
+	"time"
+
+	"github.com/alomerry/go-tools/pusher/utils"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"
-	"time"
 )
 
 type Syncer struct {

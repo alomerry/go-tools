@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alomerry/go-pusher/component/oss"
-	"github.com/alomerry/go-pusher/share"
-	"github.com/alomerry/go-pusher/utils"
+	"github.com/alomerry/go-tools/pusher/component/oss"
+	"github.com/alomerry/go-tools/pusher/share"
+	"github.com/alomerry/go-tools/pusher/utils"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"golang.org/x/net/context"

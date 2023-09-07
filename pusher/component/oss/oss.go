@@ -3,8 +3,8 @@ package oss
 import (
 	"sync"
 
-	"github.com/alomerry/go-pusher/component/oss/kodo"
-	"github.com/alomerry/go-pusher/share"
+	"github.com/alomerry/go-tools/pusher/component/oss/kodo"
+	"github.com/alomerry/go-tools/pusher/share"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 )

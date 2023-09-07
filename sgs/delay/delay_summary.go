@@ -3,7 +3,7 @@ package delay
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/alomerry/sgs-tools/utils"
+	"github.com/alomerry/go-tools/sgs/utils"
 	"github.com/emirpasic/gods/stacks"
 	"github.com/emirpasic/gods/stacks/arraystack"
 	"github.com/spf13/cast"

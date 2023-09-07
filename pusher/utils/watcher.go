@@ -1,10 +1,11 @@
 package utils
 
 import (
-	"github.com/alomerry/go-pusher/share"
 	"io/fs"
 	"os"
 	"time"
+
+	"github.com/alomerry/go-tools/pusher/share"
 )
 
 type Watcher struct {

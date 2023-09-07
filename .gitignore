@@ -1,21 +1,4 @@
-.idea
-.vscode/
-.fleet/
-
 domain.toml
-dns-tools
-
-public/
-config/core.toml
-
-
-**/*.DS_Store
-/pprof/
-/core.toml
-
-.DS_Store
-
-output
 
 *.txt
 *.xlsx
@@ -34,6 +17,7 @@ output
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+main
 
 # OS X
 .DS_Store
@@ -42,6 +26,9 @@ Thumbs.db
 # IDE Settings
 .idea
 .vscode
+.fleet
 
+/output/
 /build/
 /bin/
+/pprof/
