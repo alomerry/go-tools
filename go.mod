@@ -1,6 +1,6 @@
 module github.com/alomerry/go-tools
 
-go 1.20
+go 1.21
 
 require (
 	github.com/emirpasic/gods v1.18.1

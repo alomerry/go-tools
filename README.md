@@ -6,13 +6,13 @@ go-tools contains several tools
 
 ## Requirement
 
-- `Go 1.20` and above.
+- `Go 1.21` and above.
 
 ## Build
 
-`go build -ldflags="-s -w" -o dns-tools main.go && upx dns-tools`
+`CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ./output/go-tools main.go &&upx ./output/go-tools`
 
-## Usage 
+## Usage
 
 - [DNS](./dns/README.md)
 - [pusher](./pusher/README.md)

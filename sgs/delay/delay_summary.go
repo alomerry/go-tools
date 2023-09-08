@@ -3,20 +3,21 @@ package delay
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/alomerry/go-tools/sgs/utils"
-	"github.com/emirpasic/gods/stacks"
-	"github.com/emirpasic/gods/stacks/arraystack"
-	"github.com/spf13/cast"
-	xlsx "github.com/tealeg/xlsx/v3"
 	"io"
 	"log"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/alomerry/go-tools/sgs/utils"
+	"github.com/emirpasic/gods/stacks"
+	"github.com/emirpasic/gods/stacks/arraystack"
+	"github.com/spf13/cast"
+	xlsx "github.com/tealeg/xlsx/v3"
 )
 
 var (
-	root_path   = "/Users/alomerry/workspace/sgs-tools/output"
+	root_path   = "."
 	da_key      = "A.xlsx"
 	db_key      = "B.xlsx"
 	out_key     = "_未出数据.csv"

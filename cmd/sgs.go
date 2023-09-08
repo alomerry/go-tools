@@ -31,7 +31,7 @@ var sgs = &cobra.Command{
 }
 
 func init() {
-	sgs.Flags().StringVarP(&module, "module", "m", "", "1. 合并表格\n2. delay 月报\n3. 广州 delay")
+	sgs.Flags().StringVarP(&module, "module", "m", "", "sgs 模块包含三个功能，请使用 sgs -m <数字> 来选择执行的任务：\n1. 合并表格\n2. delay 月报\n3. 广州 delay")
 	sgs.MarkFlagRequired("module")
 	RootCmd.AddCommand(sgs)
 }
