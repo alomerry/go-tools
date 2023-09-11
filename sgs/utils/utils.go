@@ -23,3 +23,16 @@ func ColCh2Inx(col string) int32 {
 	}
 	return res - 1
 }
+
+func GetUniqueColRange(from, to int) []int {
+	var result = []int{from}
+	if from == to {
+		return result
+	}
+	i := result[len(result)-1] + 1
+	for i <= to {
+		result = append(result, i)
+		i++
+	}
+	return result
+}

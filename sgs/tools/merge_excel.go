@@ -68,7 +68,7 @@ func iterateAndMerge(fileNames []string) {
 			}
 			row := sheet.AddRow()
 			r.ForEachCell(func(c *xlsx.Cell) error {
-				utils.SetCellValueToSheet(c, row.AddCell(), nil)
+				utils.SetCellValueToSheet(c, row.AddCell(), s)
 				return nil
 			})
 			return nil
