@@ -384,7 +384,7 @@ func getDataSource(date string) (*da, *db, *dc, *starlims) {
 			}
 			var (
 				mon   = strings.TrimPrefix(strings.Split(date, "-")[1], "0")
-				day   = strings.Split(date, "-")[2]
+				day   = strings.TrimPrefix(strings.Split(date, "-")[2], "0")
 				sDate = fmt.Sprintf("%s.%s", mon, day)
 			)
 			if strings.Contains(entry.Name(), sDate) {
