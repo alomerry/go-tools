@@ -23,7 +23,7 @@ var sgs = &cobra.Command{
 		case MERGE_EXCEL:
 			tools.DoMergeExcelSheets()
 		case DELAY_SUMMARY:
-			delay.DoDelaySummaryMulti()
+			delay.DoDelaySummaryMulti("")
 		case DELAY_REASON:
 			delay.DoDelayReason()
 		}

@@ -26,7 +26,10 @@ var (
 	dateReg     = regexp.MustCompile(`202\d-\d\d-\d\d`)
 )
 
-func DoDelaySummaryMulti() {
+func DoDelaySummaryMulti(path string) {
+	if path != "" {
+		root_path = path
+	}
 	entries, err := os.ReadDir(root_path)
 	if err != nil {
 		panic(err)
