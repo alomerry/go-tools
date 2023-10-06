@@ -15,7 +15,10 @@ var (
 	root_path = "."
 )
 
-func DoMergeExcelSheets() {
+func DoMergeExcelSheets(path string) {
+	if path != "" {
+		root_path = path
+	}
 	var (
 		fileNames []string
 		files     []*os.File
