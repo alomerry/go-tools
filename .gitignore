@@ -18,7 +18,6 @@ domain.toml
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 main
-main.go
 
 # OS X
 .DS_Store
