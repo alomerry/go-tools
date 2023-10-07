@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# TODO push 前自动将文件 push 到 oss
+# PROJECT_PATH=$(cd `dirname ${0}`; cd ../; pwd)
+# COMMAND="${PROJECT_PATH}/blog/.vuepress/ossPusher --configPath ${PROJECT_PATH}/blog/.vuepress/core.toml"
+# ${COMMAND}
+# exit 0
+
+local_branch=$(git rev-parse --abbrev-ref HEAD)
+remote_branch="origin/master"
+
+# Fetch the latest changes from the remote repository
+git fetch
+
+# Check if there are any changes in the remote "develop" branch
+if [[ $(git log HEAD..$remote_branch --oneline) ]]; then
+  echo "Error: There are new commits in the remote 'develop' branch. Please rebase before pushing."
+  exit 1
+else
+  echo "Your are at latest!"
+fi
+
+exit 0
