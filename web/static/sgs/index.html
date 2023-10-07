@@ -1,138 +1,147 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>响应式Bootstrap 5模板</title>
-  <!-- 引入Bootstrap CSS -->
-  <link href="bootstrap.min.css" rel="stylesheet">
-  <script src="bootstrap.min.js"></script>
-  <script src="sgs.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SGS Tools</title>
+    <link href="bootstrap.min.css" rel="stylesheet">
+    <script src="bootstrap.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="sgs.js"></script>
 </head>
 <body>
 <!--https://getbootstrap.com/docs/5.3/getting-started/introduction/-->
 <div class="container mt-5">
-  <div class="d-flex align-items-start">
-    <!-- 选项卡导航 -->
-    <div class="nav flex-column nav-pills me-3"role="tablist">
-      <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#merge-excel" type="button" role="tab" >Merge Excel</button>
-      <button class="nav-link" data-bs-toggle="pill" data-bs-target="#delay-reason" type="button" role="tab" >Delay Reason</button>
-      <button class="nav-link" data-bs-toggle="pill" data-bs-target="#delay-summary" type="button" role="tab">Delay Summary</button>
+    <div class="d-flex align-items-start">
+        <!-- 选项卡导航 -->
+        <div class="nav flex-column nav-pills me-3" role="tablist">
+            <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#merge-excel" type="button"
+                    role="tab">Merge Excel
+            </button>
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#delay-reason" type="button" role="tab">Delay
+                Reason
+            </button>
+            <button class="nav-link" data-bs-toggle="pill" data-bs-target="#delay-summary" type="button" role="tab">
+                Delay Summary
+            </button>
+        </div>
+        <!-- 选项卡内容 -->
+        <div class="tab-content mt-3">
+            <div class="tab-pane fade show active" id="merge-excel" role="tabpanel" aria-labelledby="v-pills-home-tab"
+                 tabindex="0">
+                <div class="card  w-70 mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">合并 excel </h5>
+                        <form action='' method='post' enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <div class="input-group mb-3">
+                                    <input id="merge-excel-files" type="file" name="upload" class="form-control"
+                                           multiple>
+                                    <button class="btn btn-primary"
+                                            onclick="onUpload('/api/sgs/merge-excels/files','merge-excel-files')">上传
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
+                            <button class="btn btn-outline-success" type="button" disabled>
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                <span role="status">执行...</span>
+                            </button>
+                        </div>
+                        <div class="progress" role="progressbar" aria-label="Animated striped example"
+                             aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-link" onclick="toastsMsg('666')">Download</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="delay-reason" role="tabpanel" aria-labelledby="v-pills-profile-tab"
+                 tabindex="0">
+                <div class="card  w-70 mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">广州 delay 原因 </h5>
+                        <form>
+                            <div class="mb-3">
+                                <div class="input-group mb-3">
+                                    <input type="file" class="form-control">
+                                    <button class="btn btn-primary" type="button">上传</button>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
+                            <button class="btn btn-outline-success" type="button" disabled>
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                <span role="status">执行...</span>
+                            </button>
+                        </div>
+                        <div class="progress" role="progressbar" aria-label="Animated striped example"
+                             aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-link">Download</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="delay-summary" role="tabpanel" aria-labelledby="v-pills-disabled-tab"
+                 tabindex="0">
+                <div class="card  w-70 mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">月度 delay 生成 </h5>
+                        <form>
+                            <div class="mb-3">
+                                <div class="input-group mb-3">
+                                    <input type="file" class="form-control">
+                                    <button class="btn btn-primary" type="button">上传</button>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
+                            <button class="btn btn-outline-success" type="button" disabled>
+                                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                <span role="status">执行...</span>
+                            </button>
+                        </div>
+                        <div class="progress" role="progressbar" aria-label="Animated striped example"
+                             aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-link">Download</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <!-- 选项卡内容 -->
-    <div class="tab-content mt-3">
-      <div class="tab-pane fade show active" id="merge-excel" role="tabpanel" aria-labelledby="v-pills-home-tab" tabindex="0">
-        <div class="card  w-70 mb-3">
-          <div class="card-body">
-            <h5 class="card-title mb-3">合并 excel </h5>
-            <form action='/api/sgs/merge-excels/files' method='post' enctype="multipart/form-data">
-              <div class="mb-3">
-                <div class="input-group mb-3">
-                  <input type="file" name="upload" class="form-control" multiple>
-                  <input type="submit" class="btn btn-primary">
-                </div>
-              </div>
-            </form>
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
-              <button class="btn btn-outline-success" type="button" disabled>
-                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                <span role="status">执行...</span>
-              </button>
-            </div>
-            <div class="progress" role="progressbar" aria-label="Animated striped example" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 75%"></div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-              <button type="button" class="btn btn-link" onclick="toastsMsg('666')">Download</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="tab-pane fade" id="delay-reason" role="tabpanel" aria-labelledby="v-pills-profile-tab" tabindex="0">
-        <div class="card  w-70 mb-3">
-          <div class="card-body">
-            <h5 class="card-title mb-3">广州 delay 原因 </h5>
-            <form>
-              <div class="mb-3">
-                <div class="input-group mb-3">
-                  <input type="file" class="form-control">
-                  <button class="btn btn-primary" type="button">上传</button>
-                </div>
-              </div>
-            </form>
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
-              <button class="btn btn-outline-success" type="button" disabled>
-                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                <span role="status">执行...</span>
-              </button>
-            </div>
-            <div class="progress" role="progressbar" aria-label="Animated striped example" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 75%"></div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-              <button type="button" class="btn btn-link">Download</button>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="tab-pane fade" id="delay-summary" role="tabpanel" aria-labelledby="v-pills-disabled-tab" tabindex="0">
-        <div class="card  w-70 mb-3">
-          <div class="card-body">
-            <h5 class="card-title mb-3">月度 delay 生成 </h5>
-            <form>
-              <div class="mb-3">
-                <div class="input-group mb-3">
-                  <input type="file" class="form-control">
-                  <button class="btn btn-primary" type="button">上传</button>
-                </div>
-              </div>
-            </form>
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end mb-3">
-              <button class="btn btn-outline-success" type="button" disabled>
-                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                <span role="status">执行...</span>
-              </button>
-            </div>
-            <div class="progress" role="progressbar" aria-label="Animated striped example" aria-valuenow="75" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 75%"></div>
-            </div>
-          </div>
-          <div class="card-footer">
-            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-              <button type="button" class="btn btn-link">Download</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div>
-  <div class="toast-container top-0 start-50 translate-middle-x">
-    <div id="liveToast" class="toast text-bg-warning" role="alert">
-      <div class="d-flex">
-        <div class="toast-body" id="toast-body">
-          Hello, world! This is a toast message.
+    <div class="toast-container top-0 start-50 translate-middle-x">
+        <div id="liveToast" class="toast text-bg-warning" role="alert">
+            <div class="d-flex">
+                <div class="toast-body" id="toast-body">
+                    Hello, world! This is a toast message.
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
         </div>
-        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>
     </div>
-  </div>
 </div>
-
-<script>
-    function toastsMsg(msg) {
-        document.getElementById("toast-body").innerHTML=msg;
-        const toastLiveExample = document.getElementById('liveToast')
-        const toastBootstrap = bootstrap.Toast.getOrCreateInstance(toastLiveExample)
-        toastBootstrap.show()
-    }
-</script>
 
 </body>
 </html>
