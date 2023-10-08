@@ -7,10 +7,11 @@ import (
 
 func main() {
 	router := gin.Default()
-	router.Static("/sgs", "web/static/sgs")
+
+	router.Static("/sgs", "static/sgs")
+
 	api := router.Group("/api")
-	{
-		wrap.HandleSgsTools(api.Group("/sgs"))
-	}
+	wrap.HandleAPI(api)
+
 	router.Run(":8089")
 }
