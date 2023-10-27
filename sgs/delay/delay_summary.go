@@ -3,6 +3,7 @@ package delay
 import (
 	"encoding/csv"
 	"fmt"
+	"github.com/alomerry/go-tools/sgs/tools"
 	"io"
 	"log"
 	"os"
@@ -22,7 +23,7 @@ var (
 	db_key      = "B.xlsx"
 	out_key     = "_未出数据.csv"
 	slims_key   = "starlims"
-	result_name = "Starlims Delay%s.%s.xlsx" // Starlims Delay8.18.xlsx
+	result_name = "Starlims Delay 结果.xlsx" // Starlims Delay.xlsx
 	dateReg     = regexp.MustCompile(`202\d-\d\d-\d\d`)
 )
 
@@ -34,21 +35,26 @@ func DoDelaySummaryMulti(path string) {
 	if err != nil {
 		panic(err)
 	}
-	done := make(map[string]struct{})
+	var (
+		done  = make(map[string]struct{})
+		dates []string
+	)
+
 	for _, entry := range entries {
 		if dateReg.MatchString(entry.Name()) {
 			date := dateReg.FindString(entry.Name())
 			if _, ok := done[date]; !ok {
-				do(date)
+				dates = append(dates, date)
 				done[date] = struct{}{}
 			}
 		}
 	}
+	do(dates)
 }
 
-func do(date string) {
-	log.Default().Printf("start to handle date [%s]......\n", date)
-	da, db, dc, slims := getDataSource(date)
+func do(dates []string) {
+	log.Default().Printf("start to handle dates %s......\n", dates)
+	da, db, dc, slims := getDataSource()
 	da.clearHold()
 	slims.mergeDa(da.sheet)
 	slims.mergeLogic2Report(slims.getLogicS())
@@ -56,11 +62,11 @@ func do(date string) {
 	slims.modifyReportAndSheet3()
 	slims.mergeOut(dc.getOut())
 	slims.modifyReport()
-	genNewResult(slims.report, date)
-	log.Default().Printf("date [%s] done.\n", date)
+	genNewResult(slims.report)
+	log.Default().Printf("date [%s] done.\n")
 }
 
-func genNewResult(sheet *xlsx.Sheet, date string) {
+func genNewResult(sheet *xlsx.Sheet) {
 	var (
 		file       *xlsx.File
 		result     *xlsx.Sheet
@@ -78,13 +84,6 @@ func genNewResult(sheet *xlsx.Sheet, date string) {
 		return nil
 	})
 	resultName = fmt.Sprintf("%s/%s", root_path, result_name)
-	if date != "" {
-		var (
-			mon = strings.TrimPrefix(strings.Split(date, "-")[1], "0")
-			day = strings.Split(date, "-")[2]
-		)
-		resultName = fmt.Sprintf("%s/%s", root_path, fmt.Sprintf(result_name, mon, day))
-	}
 	err := file.Save(resultName)
 	if err != nil {
 		panic(err)
@@ -164,7 +163,6 @@ func (db *db) getSortedB() []*xlsx.Row {
 
 type dc struct {
 	file *os.File
-	date string
 }
 
 func (dc *dc) getOut() [][]string {
@@ -369,33 +367,20 @@ func (sl *starlims) modifyReport() {
 	sl.file.Sync()
 }
 
-func getDataSource(date string) (*da, *db, *dc, *starlims) {
+func getDataSource() (*da, *db, *dc, *starlims) {
 	var (
-		da *da
-		db *db
-		dc = &dc{}
-		sl *starlims
+		da      *da
+		db      *db
+		dc      = &dc{}
+		sl      *starlims
+		dcPaths []string
 	)
 	entries, err := os.ReadDir(root_path)
 	if err != nil {
 		panic(err)
 	}
+
 	for _, entry := range entries {
-		if date != "" {
-			if strings.Contains(entry.Name(), date) || strings.Contains(entry.Name(), slims_key) {
-				goto START
-			}
-			var (
-				mon   = strings.TrimPrefix(strings.Split(date, "-")[1], "0")
-				day   = strings.TrimPrefix(strings.Split(date, "-")[2], "0")
-				sDate = fmt.Sprintf("%s.%s", mon, day)
-			)
-			if strings.Contains(entry.Name(), sDate) {
-				goto START
-			}
-			continue
-		}
-	START:
 		path := fmt.Sprintf("%s/%s", root_path, entry.Name())
 		switch {
 		case strings.Contains(entry.Name(), da_key):
@@ -403,15 +388,28 @@ func getDataSource(date string) (*da, *db, *dc, *starlims) {
 		case strings.Contains(entry.Name(), db_key):
 			db = getDB(path)
 		case strings.Contains(entry.Name(), out_key):
-			dc.file, err = os.Open(path)
-			if err != nil {
-				panic(err)
-			}
-			dc.date = dateReg.FindString(entry.Name())
+			dcPaths = append(dcPaths, path)
 		case strings.Contains(entry.Name(), slims_key):
 			sl = getStarlims(path)
 		}
 	}
+
+	tools.DoMergeExcelSheets(root_path, dcPaths)
+	entries, err = os.ReadDir(root_path)
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		path := fmt.Sprintf("%s/%s", root_path, entry.Name())
+		if strings.Contains(entry.Name(), tools.MergeKey) {
+			dc.file, err = os.Open(path)
+			if err != nil {
+				panic(err)
+			}
+			break
+		}
+	}
+
 	return da, db, dc, sl
 }
 

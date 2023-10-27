@@ -38,7 +38,7 @@ func mergeExcel(c *gin.Context) {
 	status.mergeExcelCtx = utils.Work{Ctx: ctx, Cancel: cancel}
 	go func() {
 		defer cancel()
-		tools.DoMergeExcelSheets(mergeExcelWorkDir)
+		tools.DoMergeExcelSheets(mergeExcelWorkDir, nil)
 	}()
 	c.Status(http.StatusOK)
 }

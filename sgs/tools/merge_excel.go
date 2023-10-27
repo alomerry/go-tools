@@ -11,36 +11,55 @@ import (
 	"strings"
 )
 
+const (
+	MergeKey = "合并结果"
+)
+
 var (
 	root_path = "."
 )
 
-func DoMergeExcelSheets(path string) {
-	if path != "" {
-		root_path = path
-	}
+func DoMergeExcelSheets(path string, filePaths []string) {
 	var (
 		fileNames []string
 		files     []*os.File
 	)
-	entries, err := os.ReadDir(root_path)
-	if err != nil {
-		panic(err)
+	if path != "" {
+		root_path = path
 	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		fileName := fmt.Sprintf("%s/%s", root_path, entry.Name())
-		if strings.HasSuffix(entry.Name(), "xlsx") {
-			fileNames = append(fileNames, fileName)
-		} else {
-			f, err := os.Open(fileName)
-			if err != nil {
-				panic(err)
+	if len(filePaths) > 0 {
+		if strings.Index(filePaths[0], "csv") > -1 {
+			for _, filePath := range filePaths {
+				f, err := os.Open(filePath)
+				if err != nil {
+					panic(err)
+				}
+				files = append(files, f)
 			}
-			files = append(files, f)
+		} else {
+			fileNames = filePaths
+		}
+
+	} else {
+		entries, err := os.ReadDir(root_path)
+		if err != nil {
+			panic(err)
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			fileName := fmt.Sprintf("%s/%s", root_path, entry.Name())
+			if strings.HasSuffix(entry.Name(), "xlsx") {
+				fileNames = append(fileNames, fileName)
+			} else {
+				f, err := os.Open(fileName)
+				if err != nil {
+					panic(err)
+				}
+				files = append(files, f)
+			}
 		}
 	}
 
@@ -49,7 +68,6 @@ func DoMergeExcelSheets(path string) {
 	} else {
 		genNewMergeCSVResult(files)
 	}
-
 }
 
 func iterateAndMerge(fileNames []string) {
@@ -78,7 +96,7 @@ func iterateAndMerge(fileNames []string) {
 		})
 		fmt.Printf("%s merge rows: [%d] now:[%d]\n", fileName, s.MaxRow, sheet.MaxRow)
 	}
-	err := file.Save(fmt.Sprintf("%s/%s", root_path, "合并结果.xlsx"))
+	err := file.Save(fmt.Sprintf("%s/%s", root_path, MergeKey+".xlsx"))
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +108,7 @@ func genNewMergeCSVResult(files []*os.File) {
 		file   *os.File
 		writer *csv.Writer
 	)
-	file, err := os.Create(fmt.Sprintf("%s/%s", root_path, "合并结果.csv"))
+	file, err := os.Create(fmt.Sprintf("%s/%s", root_path, MergeKey+".csv"))
 	if err != nil {
 		panic(err)
 	}

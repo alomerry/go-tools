@@ -21,7 +21,7 @@ var sgs = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		switch cast.ToInt(module) {
 		case MERGE_EXCEL:
-			tools.DoMergeExcelSheets()
+			tools.DoMergeExcelSheets("", nil)
 		case DELAY_SUMMARY:
 			delay.DoDelaySummaryMulti("")
 		case DELAY_REASON:
