@@ -137,7 +137,7 @@ func getCSVSheet(file *os.File, needFirstRow bool) [][]string {
 			break
 		}
 		if err != nil {
-			panic(err)
+			panic(fmt.Sprintf("%s: [%v]", file.Name(), err))
 		}
 		if needFirstRow || idx != 0 {
 			result = append(result, record)
