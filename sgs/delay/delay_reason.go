@@ -3,21 +3,51 @@ package delay
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/tealeg/xlsx/v3"
 )
 
-func DoDelayReason() {
-	mapper := getDelayId2Reason()
-	setIdSourceDelayReason(mapper)
+var (
+	delay_source = "8月delay数据源.xlsx"
+	id_source    = "8月delay单号.xlsx"
+)
+
+func DoDelayReason(path string) {
+	if path != "" {
+		root_path = path
+	}
+
+	delaySource, idSource := getSource()
+	setIdSourceDelayReason(idSource, getDelayId2Reason(delaySource))
 }
 
-func setIdSourceDelayReason(mapper map[string]string) {
-	idSource, err := xlsx.OpenFile("./单号数据源模版.xlsx")
+func getSource() (delaySource, idSource *xlsx.File) {
+	entries, err := os.ReadDir(root_path)
 	if err != nil {
 		panic(err)
 	}
+
+	for _, entry := range entries {
+		path := fmt.Sprintf("%s/%s", root_path, entry.Name())
+		switch {
+		case strings.Contains(entry.Name(), delay_source):
+			delaySource, err = xlsx.OpenFile(path)
+			if err != nil {
+				panic(err)
+			}
+		case strings.Contains(entry.Name(), id_source):
+			idSource, err = xlsx.OpenFile(path)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	return
+}
+
+func setIdSourceDelayReason(idSource *xlsx.File, mapper map[string]string) {
 	idSh := idSource.Sheets[0]
 	var (
 		idIndex, reasonIndex = 0, 2
@@ -40,23 +70,28 @@ func setIdSourceDelayReason(mapper map[string]string) {
 		lineIndex++
 		return nil
 	})
-	idSource.Save("./单号数据源模版.xlsx")
-}
-
-func getDelayId2Reason() map[string]string {
-	var mapper = make(map[string]string)
-	delaySource, err := xlsx.OpenFile("./delay数据源.xlsx")
+	err := idSource.Save(fmt.Sprintf("%s/%s", root_path, id_source))
 	if err != nil {
 		panic(err)
 	}
+}
+
+func getDelayId2Reason(delaySource *xlsx.File) map[string]string {
+	var mapper = make(map[string]string)
+
 	delaySh := delaySource.Sheets[0]
 	var (
 		idIndex, reasonIndex = 1, 10
 	)
-	err = delaySh.ForEachRow(func(r *xlsx.Row) error {
+	err := delaySh.ForEachRow(func(r *xlsx.Row) error {
 		mapper[r.GetCell(idIndex).Value] = r.GetCell(reasonIndex).Value
 		return nil
 	})
+
+	if err != nil {
+		panic(err)
+	}
+
 	return mapper
 }
 
