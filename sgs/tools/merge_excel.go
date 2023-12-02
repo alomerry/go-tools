@@ -27,6 +27,7 @@ func DoMergeExcelSheets(path string, filePaths []string) {
 	if path != "" {
 		root_path = path
 	}
+
 	if len(filePaths) > 0 {
 		if strings.Index(filePaths[0], "csv") > -1 {
 			for _, filePath := range filePaths {
@@ -36,7 +37,7 @@ func DoMergeExcelSheets(path string, filePaths []string) {
 				}
 				files = append(files, f)
 			}
-		} else {
+		} else if strings.Index(filePaths[0], "xlsx") > -1 {
 			fileNames = filePaths
 		}
 
@@ -53,7 +54,7 @@ func DoMergeExcelSheets(path string, filePaths []string) {
 			fileName := fmt.Sprintf("%s/%s", root_path, entry.Name())
 			if strings.HasSuffix(entry.Name(), "xlsx") {
 				fileNames = append(fileNames, fileName)
-			} else {
+			} else if strings.HasSuffix(entry.Name(), "csv") {
 				f, err := os.Open(fileName)
 				if err != nil {
 					panic(err)
