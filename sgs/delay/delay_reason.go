@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	delay_source = "8月delay数据源.xlsx"
-	id_source    = "8月delay单号.xlsx"
+	delay_source = "delay数据源.xlsx"
+	id_source    = "delay单号.xlsx"
 )
 
 func DoDelayReason(path string) {

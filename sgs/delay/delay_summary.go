@@ -3,13 +3,13 @@ package delay
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/alomerry/go-tools/sgs/tools"
 	"io"
 	"log"
 	"os"
-	"regexp"
 	"strings"
+	"sync"
 
+	"github.com/alomerry/go-tools/sgs/tools"
 	"github.com/alomerry/go-tools/sgs/utils"
 	"github.com/emirpasic/gods/stacks"
 	"github.com/emirpasic/gods/stacks/arraystack"
@@ -24,45 +24,23 @@ var (
 	out_key     = "_未出数据.csv"
 	slims_key   = "starlims"
 	result_name = "Starlims Delay 结果.xlsx" // Starlims Delay.xlsx
-	dateReg     = regexp.MustCompile(`202\d-\d\d-\d\d`)
 )
 
 func DoDelaySummaryMulti(path string) {
 	if path != "" {
 		root_path = path
 	}
-	entries, err := os.ReadDir(root_path)
-	if err != nil {
-		panic(err)
-	}
-	var (
-		done  = make(map[string]struct{})
-		dates []string
-	)
 
-	for _, entry := range entries {
-		if dateReg.MatchString(entry.Name()) {
-			date := dateReg.FindString(entry.Name())
-			if _, ok := done[date]; !ok {
-				dates = append(dates, date)
-				done[date] = struct{}{}
-			}
-		}
-	}
-	do(dates)
-}
-
-func do(dates []string) {
-	log.Default().Printf("start to handle dates %s......\n", dates)
-	da, db, dc, slims := getDataSource()
-	da.clearHold()
-	slims.mergeDa(da.sheet)
+	log.Default().Printf("start to handle dates......\n")
+	dataSourceXlxs, db, dc, slims := getDataSource()
+	//da.clearHold()
+	slims.mergeDa(dataSourceXlxs.sheet)
 	slims.mergeLogic2Report(slims.getLogicS())
 	slims.mergeSortedB(db.getSortedB())
-	slims.modifyReportAndSheet3()
 	slims.mergeOut(dc.getOut())
+	slims.modifyReportAndSheet3()
 	slims.modifyReport()
-	genNewResult(slims.report)
+	//genNewResult(slims.report)
 	log.Default().Printf("date [%s] done.\n")
 }
 
@@ -127,11 +105,16 @@ type db struct {
 // TODO 去重
 func (db *db) getSortedB() []*xlsx.Row {
 	var (
-		rows []*xlsx.Row
+		rows  []*xlsx.Row
+		cache = make(map[string]struct{})
 	)
 	db.sheet.ForEachRow(func(r *xlsx.Row) error {
 		if r.GetCoordinate() != 0 {
-			rows = append(rows, r)
+			key := fmt.Sprintf("%v%v", r.GetCell(xlsx.ColLettersToIndex("A")).Value, r.GetCell(xlsx.ColLettersToIndex("S")).Value)
+			if _, ok := cache[key]; !ok {
+				cache[key] = struct{}{}
+				rows = append(rows, r)
+			}
 		}
 		return nil
 	})
@@ -195,10 +178,19 @@ type starlims struct {
 	report     *xlsx.Sheet
 	sheet3     *xlsx.Sheet
 	outReason  *xlsx.Sheet
+
+	lock *sync.Mutex
 }
 
-func (sl *starlims) mergeDa(da *xlsx.Sheet) {
-	da.ForEachRow(func(r *xlsx.Row) error {
+// 将 A 表数据放入 slim 的数据源 sheet 中
+func (sl *starlims) mergeDa(dataSourceXlxs *xlsx.Sheet) {
+	var (
+		count int
+	)
+
+	log.Default().Printf("start merge A into slims.\n")
+
+	dataSourceXlxs.ForEachRow(func(r *xlsx.Row) error {
 		if r.GetCoordinate() == 0 {
 			return nil
 		}
@@ -207,10 +199,13 @@ func (sl *starlims) mergeDa(da *xlsx.Sheet) {
 			utils.SetCellValueToSheet(c, row.AddCell(), sl.dataSource)
 			return nil
 		})
+		count++
 		return nil
 	})
+
 	sl.dataSource.File.Save(sl.file.Name())
 	sl.file.Sync()
+	defer log.Default().Printf("merged A into slims. row count: [%d]\n", count)
 }
 
 func (sl *starlims) getLogicJCell(rowIdx int) string {
@@ -250,26 +245,36 @@ func (sl *starlims) getLogicS() []*xlsx.Row {
 	return rows
 }
 
-func (sl *starlims) mergeLogic2Report(logicRows []*xlsx.Row) {
-	for i := range logicRows {
+func (sl *starlims) mergeLogic2Report(input []*xlsx.Row) {
+	log.Default().Printf("start merge logic into slims. row count: [%d]\n", len(input))
+
+	for i := range input {
 		logicRow := sl.report.AddRow()
-		logicRows[i].ForEachCell(func(c *xlsx.Cell) error {
-			if colIdx, _ := c.GetCoordinates(); colIdx <= xlsx.ColLettersToIndex("H") {
+		input[i].ForEachCell(func(c *xlsx.Cell) error {
+			colIdx, _ := c.GetCoordinates()
+			if colIdx <= xlsx.ColLettersToIndex("H") {
 				utils.SetCellValueToSheet(c, logicRow.AddCell(), sl.logic)
 			}
+			//fmt.Printf("[%d:%d:%s] ", rowIdx, colIdx, utils.GetCellValueBySheet(c, sl.logic))
 			return nil
 		})
 	}
 	sl.report.File.Save(sl.file.Name())
 	sl.file.Sync()
+	log.Default().Printf("merged logic into slims. row count: [%d]\n", len(input))
 }
 
 func (sl *starlims) mergeSortedB(rows []*xlsx.Row) {
+	log.Default().Printf("start merge sorted B into slims. row count: [%d]\n", len(rows))
+	defer log.Default().Printf("merged sorted B into slims. row count: [%d]\n", len(rows))
 	for i := range rows {
 		row := sl.sheet3.AddRow()
 		row.AddCell().SetString(rows[i].GetCell(xlsx.ColLettersToIndex("A")).Value)
 		row.AddCell().SetString(rows[i].GetCell(xlsx.ColLettersToIndex("S")).Value)
 	}
+
+	sl.lock.Lock()
+	defer sl.lock.Unlock()
 	sl.sheet3.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
@@ -280,19 +285,29 @@ func (sl *starlims) modifyReportAndSheet3() {
 		del         = arraystack.New()
 	)
 	sl.sheet3.ForEachRow(func(sheet3row *xlsx.Row) error {
-		if sheet3row.GetCoordinate() != 0 {
+		if sheet3row.GetCoordinate() == 0 {
+			return nil
+		}
+		if _, exists := s3ToBMapper[sheet3row.GetCell(xlsx.ColLettersToIndex("A")).Value]; !exists {
 			s3ToBMapper[sheet3row.GetCell(xlsx.ColLettersToIndex("A")).Value] = sheet3row.GetCell(xlsx.ColLettersToIndex("B")).Value
 		}
+		//key := fmt.Sprintf("%v-%v", sheet3row.GetCell(xlsx.ColLettersToIndex("A")).Value, sheet3row.GetCell(xlsx.ColLettersToIndex("B")).Value)
+		//s3ToBMapper[key] = sheet3row.GetCell(xlsx.ColLettersToIndex("B")).Value
 		return nil
 	})
+	log.Default().Printf("Key/Value init done. key count: [%d]\n", len(s3ToBMapper))
+
 	sl.report.ForEachRow(func(r *xlsx.Row) error {
-		if r.GetCoordinate() != 0 {
-			b, ok := s3ToBMapper[r.GetCell(xlsx.ColLettersToIndex("A")).Value]
-			if !ok {
-				del.Push(r.GetCoordinate())
-			} else if b != "" {
-				r.GetCell(xlsx.ColLettersToIndex("G")).SetString(b)
-			}
+		if r.GetCoordinate() == 0 {
+			return nil
+		}
+		b, ok := s3ToBMapper[r.GetCell(xlsx.ColLettersToIndex("A")).Value]
+		if !ok {
+			del.Push(r.GetCoordinate())
+			return nil
+		}
+		if b != "" {
+			r.GetCell(xlsx.ColLettersToIndex("G")).SetString(b)
 		}
 		return nil
 	})
@@ -302,20 +317,30 @@ func (sl *starlims) modifyReportAndSheet3() {
 		sl.report.RemoveRowAtIndex(idx.(int))
 	}
 
+	sl.lock.Lock()
+	defer sl.lock.Unlock()
 	sl.report.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
 
-func (sl *starlims) mergeOut(rows [][]string) {
-	for i := range rows {
+// 将未出数据表数据存入 slim 中的未出 sheet
+func (sl *starlims) mergeOut(outReasonRows [][]string) {
+	log.Default().Printf("start merge out reason into slims. row count: [%d]\n", len(outReasonRows))
+	defer log.Default().Printf("merged out reason into slims. row count: [%d]\n", len(outReasonRows))
+
+	for i := range outReasonRows {
 		row := sl.outReason.AddRow()
-		row.AddCell().SetString(fmt.Sprintf("%s%s", rows[i][xlsx.ColLettersToIndex("A")], rows[i][xlsx.ColLettersToIndex("E")]))
-		for j := range rows[i] {
-			row.AddCell().SetString(rows[i][j])
+
+		first := fmt.Sprintf("%s%s", outReasonRows[i][xlsx.ColLettersToIndex("A")], outReasonRows[i][xlsx.ColLettersToIndex("E")])
+		row.AddCell().SetString(first)
+		for j := range outReasonRows[i] {
+			row.AddCell().SetString(outReasonRows[i][j])
 		}
 	}
+
 	sl.outReason.File.Save(sl.file.Name())
 	sl.file.Sync()
+
 }
 
 func (sl *starlims) modifyReport() {
@@ -326,7 +351,7 @@ func (sl *starlims) modifyReport() {
 
 	sl.outReason.ForEachRow(func(r *xlsx.Row) error {
 		if r.GetCoordinate() != 0 {
-			outReasonMapper[r.GetCell(xlsx.ColLettersToIndex("B")).Value] = r.GetCell(xlsx.ColLettersToIndex("I")).Value
+			outReasonMapper[r.GetCell(xlsx.ColLettersToIndex("A")).Value] = r.GetCell(xlsx.ColLettersToIndex("I")).Value
 		}
 		return nil
 	})
@@ -335,10 +360,14 @@ func (sl *starlims) modifyReport() {
 		if r.GetCoordinate() == 0 {
 			return nil
 		}
-
-		r.GetCell(xlsx.ColLettersToIndex("J")).SetString(fmt.Sprintf("%s%s", r.GetCell(xlsx.ColLettersToIndex("A")).Value, r.GetCell(xlsx.ColLettersToIndex("G")).Value))
+		var key = fmt.Sprintf("%s%s", r.GetCell(xlsx.ColLettersToIndex("A")).Value, r.GetCell(xlsx.ColLettersToIndex("G")).Value)
+		if len(key) <= 0 {
+			// TODO log
+			return nil
+		}
+		r.GetCell(xlsx.ColLettersToIndex("J")).SetString(key)
 		if r.GetCell(xlsx.ColLettersToIndex("I")).Value == "" {
-			reason, ok := outReasonMapper[r.GetCell(xlsx.ColLettersToIndex("A")).Value]
+			reason, ok := outReasonMapper[key]
 			if !ok {
 				del.Push(r.GetCoordinate())
 			} else {
@@ -363,6 +392,8 @@ func (sl *starlims) modifyReport() {
 		sl.report.RemoveRowAtIndex(idx.(int))
 	}
 
+	sl.lock.Lock()
+	defer sl.lock.Unlock()
 	sl.report.File.Save(sl.file.Name())
 	sl.file.Sync()
 }
@@ -394,14 +425,19 @@ func getDataSource() (*da, *db, *dc, *starlims) {
 		}
 	}
 
-	tools.DoMergeExcelSheets(root_path, dcPaths)
+	var dcKey = out_key
+	if len(dcPaths) > 1 {
+		tools.DoMergeExcelSheets(root_path, dcPaths)
+		dcKey = tools.MergeKey
+	}
+
 	entries, err = os.ReadDir(root_path)
 	if err != nil {
 		panic(err)
 	}
 	for _, entry := range entries {
 		path := fmt.Sprintf("%s/%s", root_path, entry.Name())
-		if strings.Contains(entry.Name(), tools.MergeKey) {
+		if strings.Contains(entry.Name(), dcKey) {
 			dc.file, err = os.Open(path)
 			if err != nil {
 				panic(err)
@@ -467,6 +503,8 @@ func getStarlims(filePath string) *starlims {
 	clearSheet(res.sheet3)
 	clearSheet(res.outReason)
 	sls.Save(filePath)
+
+	res.lock = new(sync.Mutex)
 	return res
 }
 

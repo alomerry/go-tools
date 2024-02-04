@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/google/martian/log"
 	"github.com/spf13/cast"
 	"github.com/tealeg/xlsx/v3"
 	"strings"
@@ -87,7 +88,7 @@ func GetCellValueBySheet(cell *xlsx.Cell, sheet *xlsx.Sheet) any {
 			row, _ := sheet.File.Sheet[strings.Split(formula, "!")[0]].Row(y)
 			return GetCellValueBySheet(row.GetCell(x), sheet)
 		} else {
-			panic(formula)
+			log.Errorf("%v", formula)
 		}
 	case xlsx.CellTypeBool:
 		return cell.Bool()
@@ -100,7 +101,8 @@ func GetCellValueBySheet(cell *xlsx.Cell, sheet *xlsx.Sheet) any {
 		}
 		return ct
 	}
-	panic("empty type")
+	//panic("empty type")
+	return ""
 }
 
 type formula struct {

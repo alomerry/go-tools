@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/emirpasic/gods v1.18.1
 	github.com/gin-gonic/gin v1.9.1
+	github.com/google/martian v2.1.0+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/qiniu/go-sdk/v7 v7.17.1
 	github.com/spf13/cast v1.5.1
