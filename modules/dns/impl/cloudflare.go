@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/alomerry/go-tools/dns/internal"
+	"github.com/alomerry/go-tools/modules/dns/internal"
 	"log"
 	"net/http"
 )

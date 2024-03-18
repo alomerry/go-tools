@@ -2,8 +2,8 @@ package dns
 
 import (
 	"fmt"
-	dnsImpl "github.com/alomerry/go-tools/dns/impl"
-	"github.com/alomerry/go-tools/dns/utils"
+	impl2 "github.com/alomerry/go-tools/modules/dns/impl"
+	"github.com/alomerry/go-tools/modules/dns/utils"
 	"github.com/spf13/viper"
 	"os"
 )
@@ -60,7 +60,7 @@ func (c *client) SetDomainA() {
 		// TODO 抽出循环中
 		switch impl {
 		case IMPL_CF:
-			cf := &dnsImpl.Cloudflare{
+			cf := &impl2.Cloudflare{
 				Secret:  os.Getenv(CF_SK),
 				ZoneId:  os.Getenv(CF_ZONE),
 				Domains: viper.GetStringSlice("domains"),
@@ -68,7 +68,7 @@ func (c *client) SetDomainA() {
 			}
 			cf.UpsertDomainRecords()
 		case IMPL_ALI:
-			ali := &dnsImpl.Alidns{
+			ali := &impl2.Alidns{
 				AK:      os.Getenv(ALI_AK),
 				SK:      os.Getenv(ALI_SK),
 				Domains: viper.GetStringSlice("domains"),

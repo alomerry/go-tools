@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alomerry/go-tools/sgs/tools"
-	"github.com/alomerry/go-tools/sgs/utils"
+	"github.com/alomerry/go-tools/modules/sgs/tools"
+	"github.com/alomerry/go-tools/modules/sgs/utils"
 	"github.com/emirpasic/gods/stacks"
 	"github.com/emirpasic/gods/stacks/arraystack"
 	"github.com/spf13/cast"

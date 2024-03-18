@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/alomerry/go-tools/dns/internal"
+	"github.com/alomerry/go-tools/modules/dns/internal"
 	"io"
 	"log"
 	"net/http"

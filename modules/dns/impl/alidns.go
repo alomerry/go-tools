@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"github.com/alomerry/go-tools/dns/internal"
+	"github.com/alomerry/go-tools/modules/dns/internal"
 	"hash"
 	"io"
 	"log"
