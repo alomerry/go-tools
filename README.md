@@ -14,10 +14,10 @@ go-tools contains several tools
 
 ## Usage
 
-- [DNS](./dns/README.md)
+- [DNS](modules/dns/README.md)
 - [pusher](./pusher/README.md)
 - [sgs delay](./sgs/README.md)
-- [copier](./copier/README.md)
+- [copier](modules/copier/README.md)
 - algorithm
 
 ## Copier
