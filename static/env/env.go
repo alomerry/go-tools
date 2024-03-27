@@ -1,6 +1,9 @@
 package env
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 func GetElasticSearchEndpoint() string {
 	return os.Getenv(ELASTICSEARCH_ENDPOINT)
@@ -36,4 +39,8 @@ func GetRedisAK() string {
 
 func GetMysqlAdminDSN() string {
 	return os.Getenv(MYSQL_ADMIN_DSN)
+}
+
+func GetRedisClusterDSN() []string {
+	return strings.Split(os.Getenv(REDIS_CLUSTER_DSN), ",")
 }
