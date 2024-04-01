@@ -405,25 +405,39 @@ func getDataSource() (*da, *db, *dc, *starlims) {
 		dc      = &dc{}
 		sl      *starlims
 		dcPaths []string
+
+		wg = sync.WaitGroup{}
 	)
 	entries, err := os.ReadDir(root_path)
 	if err != nil {
 		panic(err)
 	}
 
+	wg.Add(3)
 	for _, entry := range entries {
 		path := fmt.Sprintf("%s/%s", root_path, entry.Name())
 		switch {
 		case strings.Contains(entry.Name(), da_key):
-			da = getDA(path)
+			go func() {
+				defer wg.Done()
+				da = getDA(path)
+			}()
 		case strings.Contains(entry.Name(), db_key):
-			db = getDB(path)
+			go func() {
+				defer wg.Done()
+				db = getDB(path)
+			}()
 		case strings.Contains(entry.Name(), out_key):
 			dcPaths = append(dcPaths, path)
 		case strings.Contains(entry.Name(), slims_key):
-			sl = getStarlims(path)
+			go func() {
+				defer wg.Done()
+				sl = getStarlims(path)
+			}()
 		}
 	}
+
+	wg.Wait()
 
 	var dcKey = out_key
 	if len(dcPaths) > 1 {
