@@ -14,10 +14,10 @@ go-tools contains several tools
 
 ## Usage
 
+- [DB backup](utils/db/dump.go)
 - [DNS](modules/dns/README.md)
 - [pusher](./pusher/README.md)
 - [sgs delay](./sgs/README.md)
-- [copier](modules/copier/README.md)
 - algorithm
 
 ## Copier

@@ -3,6 +3,8 @@ package constant
 const (
 	ENV = "ENV"
 
+	DEBUG = "DEBUG"
+
 	KUBECONFIG = "KUBECONFIG"
 
 	DATABASE_SALT = "DATABASE_SALT"

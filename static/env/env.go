@@ -22,6 +22,10 @@ func GetElasticSearchAK() string {
 	return os.Getenv(constant.ELASTICSEARCH_PASSWORD)
 }
 
+func Debug() bool {
+	return os.Getenv(constant.DEBUG) == constant.DEBUG
+}
+
 func GetEnv() string {
 	return os.Getenv(constant.ENV)
 }
