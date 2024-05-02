@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/alomerry/go-tools/components/oss"
 	"github.com/alomerry/go-tools/static/cons"
+	"github.com/alomerry/go-tools/static/env"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -15,6 +16,14 @@ import (
 
 type CloudflareR2 struct {
 	client *s3.Client
+}
+
+func NewDefaultCloudflareR2() oss.OSS {
+	return NewCloudflareR2(
+		env.GetCloudflareAccountId(),
+		env.GetCloudflareR2AccountKey(),
+		env.GetCloudflareR2AccountSK(),
+	)
 }
 
 func NewCloudflareR2(accountId, r2Key, r2Secret string) oss.OSS {

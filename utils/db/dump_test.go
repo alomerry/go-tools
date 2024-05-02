@@ -1,15 +1,9 @@
 package db
 
-import (
-	"fmt"
-	"github.com/alomerry/go-tools/static/cons"
-	"testing"
-)
-
-func TestDumpDatabase(t *testing.T) {
-	tool := NewDumpTool(
-		MySQLDumpCmdParam("root", "alomerry.com", "13306", "e0t=ereFqvpibm}91Y:n"),
-		SetDumpPath("/Users/alomerry/workspace/go-tools/output"),
-	)
-	fmt.Println(tool.DumpDbs(cons.WalineBlog))
-}
+//func TestDumpDatabase(t *testing.T) {
+//	tool := NewDumpTool(
+//		MySQLDumpCmdParam("mysql://root:xxx@alomerry.com:12345"),
+//		SetDumpPath("/Users/alomerry/workspace/go-tools/output"),
+//	)
+//	fmt.Println(tool.DumpDbs(cons.WalineBlog))
+//}

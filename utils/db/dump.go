@@ -22,13 +22,18 @@ type innerDumpTool interface {
 
 type GenDumpCmdParamFunc func(*DumpTool)
 
-func MySQLDumpCmdParam(user, host, port, password string) GenDumpCmdParamFunc {
+func MySQLDumpCmdParam(dsn string) GenDumpCmdParamFunc {
 	return func(tool *DumpTool) {
+		info, err := cons.ParseDbDsn(dsn)
+		if err != nil {
+			panic(err)
+		}
+
 		tool.dbCfg[cons.MySQL] = map[string]any{
-			"user":     user,
-			"host":     host,
-			"port":     port,
-			"password": password,
+			"user":     info.User,
+			"host":     info.Host,
+			"port":     info.Port,
+			"password": info.Password,
 		}
 	}
 }
