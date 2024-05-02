@@ -1,7 +1,7 @@
 package db
 
 import (
-	"github.com/alomerry/go-tools/static/constant"
+	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/utils/db/mysql"
 )
 
@@ -10,21 +10,21 @@ const (
 )
 
 type DumpTool struct {
-	dbCfg     map[constant.DatabaseType]map[string]any
-	clientMap map[constant.DatabaseType]innerDumpTool
+	dbCfg     map[cons.DatabaseType]map[string]any
+	clientMap map[cons.DatabaseType]innerDumpTool
 
 	dumpPath string
 }
 
 type innerDumpTool interface {
-	Dump(prefix string, param map[string]any, db constant.Database) (string, error)
+	Dump(prefix string, param map[string]any, db cons.Database) (string, error)
 }
 
 type GenDumpCmdParamFunc func(*DumpTool)
 
 func MySQLDumpCmdParam(user, host, port, password string) GenDumpCmdParamFunc {
 	return func(tool *DumpTool) {
-		tool.dbCfg[constant.MySQL] = map[string]any{
+		tool.dbCfg[cons.MySQL] = map[string]any{
 			"user":     user,
 			"host":     host,
 			"port":     port,
@@ -42,11 +42,11 @@ func SetDumpPath(path string) GenDumpCmdParamFunc {
 func NewDumpTool(paramFunc ...GenDumpCmdParamFunc) *DumpTool {
 	tool := &DumpTool{
 		dumpPath: defaultDumpPath,
-		dbCfg:    map[constant.DatabaseType]map[string]any{},
+		dbCfg:    map[cons.DatabaseType]map[string]any{},
 	}
 
-	tool.clientMap = map[constant.DatabaseType]innerDumpTool{
-		constant.MySQL: &mysql.DumpTool{},
+	tool.clientMap = map[cons.DatabaseType]innerDumpTool{
+		cons.MySQL: &mysql.DumpTool{},
 	}
 
 	for i := range paramFunc {
@@ -55,7 +55,7 @@ func NewDumpTool(paramFunc ...GenDumpCmdParamFunc) *DumpTool {
 	return tool
 }
 
-func (d *DumpTool) DumpDbs(dbs ...constant.Database) ([]string, error) {
+func (d *DumpTool) DumpDbs(dbs ...cons.Database) ([]string, error) {
 	var result []string
 	for i := range dbs {
 		sql, err := d.dumpDatabase(dbs[i])
@@ -67,12 +67,12 @@ func (d *DumpTool) DumpDbs(dbs ...constant.Database) ([]string, error) {
 	return result, nil
 }
 
-func (d *DumpTool) dumpDatabase(db constant.Database) (string, error) {
+func (d *DumpTool) dumpDatabase(db cons.Database) (string, error) {
 	switch db.Type {
-	case constant.MySQL:
+	case cons.MySQL:
 		break
 	default:
-		return constant.EmptyStr, nil
+		return cons.EmptyStr, nil
 	}
 
 	return d.clientMap[db.Type].Dump(d.dumpPath, d.dbCfg[db.Type], db)

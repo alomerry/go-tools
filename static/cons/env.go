@@ -1,4 +1,4 @@
-package constant
+package cons
 
 const (
 	ENV = "ENV"
@@ -26,4 +26,8 @@ const (
 
 	MYSQL_ADMIN_DSN       = "MYSQL_ADMIN_DSN"
 	LOCAL_MYSQL_ADMIN_DSN = "LOCAL_MYSQL_ADMIN_DSN"
+
+	CloudflareAccountId    = "CLOUDFLARE_ACCOUNT_ID"
+	CloudflareR2AccountKey = "CLOUDFLARE_R2_ACCOUNT_KEY"
+	CloudflareR2AccountSK  = "CLOUDFLARE_R2_ACCOUNT_SK"
 )

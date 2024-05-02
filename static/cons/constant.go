@@ -1,4 +1,4 @@
-package constant
+package cons
 
 const (
 	EnvLocal = "LOCAL"

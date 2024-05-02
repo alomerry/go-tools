@@ -3,7 +3,7 @@ package mysql
 import (
 	"bufio"
 	"fmt"
-	"github.com/alomerry/go-tools/static/constant"
+	"github.com/alomerry/go-tools/static/cons"
 	"io"
 	"log"
 	"os"
@@ -17,7 +17,7 @@ const (
 
 type DumpTool struct{}
 
-func (d *DumpTool) Dump(prefix string, params map[string]any, db constant.Database) (string, error) {
+func (d *DumpTool) Dump(prefix string, params map[string]any, db cons.Database) (string, error) {
 	var (
 		date        = time.Now().Format(time.DateOnly)
 		cmd         = exec.Command(mysqldump, append(d.genDumpCmdParam(params), db.Name)...)
@@ -26,13 +26,13 @@ func (d *DumpTool) Dump(prefix string, params map[string]any, db constant.Databa
 
 	dumpSql, err := os.OpenFile(dumpSqlPath, os.O_RDWR|os.O_CREATE, 0777)
 	if err != nil {
-		return constant.EmptyStr, err
+		return cons.EmptyStr, err
 	}
 	defer dumpSql.Close()
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return constant.EmptyStr, err
+		return cons.EmptyStr, err
 	}
 	defer stdout.Close()
 	if err := cmd.Start(); err != nil {
@@ -48,19 +48,19 @@ func (d *DumpTool) Dump(prefix string, params map[string]any, db constant.Databa
 	for {
 		cnt, err := buff.Read(block)
 		if err != nil && err != io.EOF {
-			return constant.EmptyStr, err
+			return cons.EmptyStr, err
 		}
 		if 0 == cnt {
 			break
 		}
 		dumpSql.WriteAt(block[:cnt], offset)
 		if err != nil && err != io.EOF {
-			return constant.EmptyStr, err
+			return cons.EmptyStr, err
 		}
 		offset += int64(cnt)
 	}
 	if err := cmd.Wait(); err != nil {
-		return constant.EmptyStr, err
+		return cons.EmptyStr, err
 	}
 	return dumpSqlPath, nil
 }
