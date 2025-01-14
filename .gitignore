@@ -32,3 +32,4 @@ Thumbs.db
 /build/
 /bin/
 /pprof/
+/vendor
