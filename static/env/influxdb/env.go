@@ -1,8 +1,9 @@
 package influxdb
 
 import (
-	"github.com/alomerry/go-tools/static/cons/tsdb/influxdb"
 	"os"
+
+	"github.com/alomerry/go-tools/static/cons/tsdb/influxdb"
 )
 
 func GetEndpoint() string {
@@ -10,6 +11,13 @@ func GetEndpoint() string {
 		return v
 	}
 	return "http://localhost:8086"
+}
+
+func GetOrg() string {
+	if v := os.Getenv(influxdb.Org); len(v) > 0 {
+		return v
+	}
+	return "alomerry.com"
 }
 
 func GetToken() string {

@@ -1,6 +1,7 @@
 package def
 
 import (
+	"context"
 	"time"
 )
 
@@ -24,6 +25,7 @@ func WithOrg(org string) Option {
 }
 
 type Metric interface {
-	LogPoint(measurement string, tags map[string]string, fields map[string]any) error
-	LogPointWithTime(measurement string, tags map[string]string, fields map[string]any, date time.Time) error
+	LogPoint(bucket, measurement string, tags map[string]string, fields map[string]any) error
+	LogPointWithTime(bucket, measurement string, tags map[string]string, fields map[string]any, date time.Time) error
+	Ping(ctx context.Context) error
 }
