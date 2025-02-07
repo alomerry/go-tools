@@ -3,12 +3,13 @@ package mysql
 import (
 	"bufio"
 	"fmt"
-	"github.com/alomerry/go-tools/static/cons"
 	"io"
 	"log"
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/alomerry/go-tools/static/cons"
 )
 
 const (
