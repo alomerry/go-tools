@@ -33,3 +33,7 @@ func NewClient(kubeconfig string) (*Client, error) {
 
 	return &Client{clientset: clientset}, nil
 }
+
+func (c *Client) GetClientset() *kubernetes.Clientset {
+	return c.clientset
+}
