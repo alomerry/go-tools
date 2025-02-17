@@ -26,3 +26,10 @@ func GetPassword() string {
 	}
 	return ""
 }
+
+func Debug() bool {
+	if v := os.Getenv(mysql.Debug); len(v) > 0 {
+		return v == "true"
+	}
+	return false
+}
