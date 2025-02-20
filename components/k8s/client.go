@@ -10,8 +10,7 @@ type Client struct {
 	clientset *kubernetes.Clientset
 }
 
-// NewClient 创建一个新的K8s客户端
-func NewClient(kubeconfig string) (*Client, error) {
+func NewConfig(kubeconfig string) (*rest.Config, error) {
 	var config *rest.Config
 	var err error
 
@@ -22,6 +21,19 @@ func NewClient(kubeconfig string) (*Client, error) {
 		// 在集群内部运行时使用集群内配置
 		config, err = rest.InClusterConfig()
 	}
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+// NewClient 创建一个新的K8s客户端
+func NewClient(kubeconfig string) (*Client, error) {
+	var (
+		config *rest.Config
+		err    error
+	)
+	config, err = NewConfig(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
