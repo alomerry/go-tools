@@ -12,17 +12,17 @@ type CanHashUnique[T SetType] interface {
 	Unique() T
 }
 
-type SetV2[T SetType] struct {
+type Set[T SetType] struct {
 	set map[T]struct{}
 }
 
-func (s *SetV2[T]) Instance() *SetV2[T] {
-	ss := SetV2[T]{make(map[T]struct{})}
+func Instance[T SetType]() *Set[T] {
+	ss := Set[T]{make(map[T]struct{})}
 	return &ss
 }
 
-func InstanceSetAndMapFromStructSlice[T SetType, K CanHashUnique[T]](slice []K) (*SetV2[T], map[T]K) {
-	s := (&SetV2[T]{}).Instance()
+func InstanceSetAndMapFromStructSlice[T SetType, K CanHashUnique[T]](slice []K) (*Set[T], map[T]K) {
+	s := Instance[T]()
 	mapper := make(map[T]K)
 	for i := range slice {
 		uniqueValue := slice[i].Unique()
@@ -35,33 +35,34 @@ func InstanceSetAndMapFromStructSlice[T SetType, K CanHashUnique[T]](slice []K) 
 	return s, mapper
 }
 
-func (s *SetV2[T]) InstanceFromSlice(slice *[]T) *SetV2[T] {
+func InstanceFromSlice[T SetType](slice *[]T) *Set[T] {
+	s := Instance[T]()
 	for i := range *slice {
 		s = s.Insert((*slice)[i])
 	}
 	return s
 }
 
-func (s *SetV2[T]) Clear() {
+func (s *Set[T]) Clear() {
 	for k := range s.set {
 		delete(s.set, k)
 	}
 }
 
-func (s *SetV2[T]) Empty() bool {
+func (s *Set[T]) Empty() bool {
 	return len(s.set) == 0
 }
 
-func (s *SetV2[T]) Size() uint {
+func (s *Set[T]) Size() uint {
 	if s == nil {
 		return 0
 	}
 	return uint(len(s.set))
 }
 
-func (s *SetV2[T]) Insert(val T) *SetV2[T] {
+func (s *Set[T]) Insert(val T) *Set[T] {
 	if s == nil || s.set == nil {
-		set := SetV2[T]{set: make(map[T]struct{})}
+		set := Set[T]{set: make(map[T]struct{})}
 		s = &set
 	}
 
@@ -69,12 +70,12 @@ func (s *SetV2[T]) Insert(val T) *SetV2[T] {
 	return s
 }
 
-func (s *SetV2[T]) TryInsert(val T) (*SetV2[T], bool) {
+func (s *Set[T]) TryInsert(val T) (*Set[T], bool) {
 	// 是否不存在并插入成功
 	var insertSuccess bool
 	if s == nil || s.set == nil {
-		set := SetV2[T]{make(map[T]struct{})}
-		s = &set // 无效的，务必提前创建 SetV2
+		set := Set[T]{make(map[T]struct{})}
+		s = &set // 无效的，务必提前创建 Set
 		insertSuccess = true
 	} else {
 		_, ok := s.set[val]
@@ -85,9 +86,9 @@ func (s *SetV2[T]) TryInsert(val T) (*SetV2[T], bool) {
 	return s, insertSuccess
 }
 
-func (s *SetV2[T]) InsertAll(val ...T) *SetV2[T] {
+func (s *Set[T]) InsertAll(val ...T) *Set[T] {
 	if s == nil || s.set == nil {
-		set := SetV2[T]{make(map[T]struct{})}
+		set := Set[T]{make(map[T]struct{})}
 		s = &set
 	}
 	for i := range val {
@@ -96,16 +97,16 @@ func (s *SetV2[T]) InsertAll(val ...T) *SetV2[T] {
 	return s
 }
 
-func (s *SetV2[T]) Remove(val T) {
+func (s *Set[T]) Remove(val T) {
 	delete(s.set, val)
 }
 
-func (s *SetV2[T]) Has(val T) bool {
+func (s *Set[T]) Has(val T) bool {
 	_, exists := s.set[val]
 	return exists
 }
 
-func (s *SetV2[T]) HasAnyItem(val ...T) bool {
+func (s *Set[T]) HasAnyItem(val ...T) bool {
 	for i := range val {
 		if _, exists := s.set[val[i]]; exists {
 			return true
@@ -114,7 +115,7 @@ func (s *SetV2[T]) HasAnyItem(val ...T) bool {
 	return false
 }
 
-func (s *SetV2[T]) ToArray() []T {
+func (s *Set[T]) ToArray() []T {
 	result := make([]T, s.Size())
 	index := 0
 	for k := range s.set {
@@ -124,8 +125,8 @@ func (s *SetV2[T]) ToArray() []T {
 	return result
 }
 
-func (s *SetV2[T]) Clone() *SetV2[T] {
-	result := SetV2[T]{make(map[T]struct{}, s.Size())}
+func (s *Set[T]) Clone() *Set[T] {
+	result := Set[T]{make(map[T]struct{}, s.Size())}
 	reflect.Copy(reflect.ValueOf(s), reflect.ValueOf(&result))
 	return &result
 }
