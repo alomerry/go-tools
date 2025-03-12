@@ -6,7 +6,11 @@ import (
 	"unsafe"
 )
 
-const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+const (
+	fullLetters  = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+	lowerLetters = "abcdefghijklmnopqrstuvwxyz"
+	upperLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
 
 var src = rand.NewSource(time.Now().UnixNano())
 
@@ -19,6 +23,18 @@ const (
 )
 
 func String(n int) string {
+	return randString(n, fullLetters)
+}
+
+func RandomLowerString(n int) string {
+	return randString(n, lowerLetters)
+}
+
+func RandomUpperString(n int) string {
+	return randString(n, upperLetters)
+}
+
+func randString(n int, letters string) string {
 	b := make([]byte, n)
 	// A rand.Int63() generates 63 random bits, enough for letterIdMax letters!
 	for i, cache, remain := n-1, src.Int63(), letterIdMax; i >= 0; {
