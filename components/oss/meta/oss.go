@@ -11,6 +11,7 @@ type ClientType string
 
 const (
 	ClientTypeMinio ClientType = "minio"
+	ClientKodo      ClientType = "kodo"
 )
 
 // Config 存储配置
@@ -28,6 +29,7 @@ type Config struct {
 type OSSClient interface {
 	PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error
 	GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error)
+	DownloadToFile(ctx context.Context, objectKey string) (fileName string, err error)
 	RemoveObject(ctx context.Context, objectKey string) error
 	StatObject(ctx context.Context, objectKey string) (ObjectInfo, error)
 	PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error)

@@ -31,6 +31,11 @@ func NewMinioClient(cfg meta.Config) (meta.OSSClient, error) {
 	}, nil
 }
 
+func (m *minioClient) DownloadToFile(ctx context.Context, objectKey string) (string, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m *minioClient) PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error {
 	_, err := m.client.PutObject(ctx, m.bucketName, objectKey, reader, objectSize, minio.PutObjectOptions{})
 	return err

@@ -3,7 +3,6 @@ package s3
 import (
 	"context"
 	"fmt"
-	"github.com/alomerry/go-tools/components/oss"
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/static/env"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,7 +17,7 @@ type CloudflareR2 struct {
 	client *s3.Client
 }
 
-func NewDefaultCloudflareR2() oss.OSS {
+func NewDefaultCloudflareR2() any {
 	return NewCloudflareR2(
 		env.GetCloudflareAccountId(),
 		env.GetCloudflareR2AccountKey(),
@@ -26,7 +25,7 @@ func NewDefaultCloudflareR2() oss.OSS {
 	)
 }
 
-func NewCloudflareR2(accountId, r2Key, r2Secret string) oss.OSS {
+func NewCloudflareR2(accountId, r2Key, r2Secret string) any {
 	c := &CloudflareR2{}
 	r2Resolver := aws.EndpointResolverWithOptionsFunc(
 		func(service, region string, options ...interface{}) (aws.Endpoint, error) {
