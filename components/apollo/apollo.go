@@ -41,10 +41,10 @@ func Init(appId string) {
 	})
 }
 
-func Get(name string, value any) error {
+func Get(name string) (any, error) {
 	cache := client.GetConfigCache(env.ApolloNamespace())
 	value, err := cache.Get(name)
-	return err
+	return value, err
 }
 
 func GetJson[T any](name string, dist *T) error {
