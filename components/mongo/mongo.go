@@ -26,3 +26,7 @@ func NewMongoDB(ctx context.Context, uri string) (*Mongo, error) {
 		client: client,
 	}, nil
 }
+
+func (m *Mongo) Client() *qmgo.Client {
+	return m.client
+}
