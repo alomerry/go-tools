@@ -1,5 +1,6 @@
 package cons
 
 const (
-	OssBucketCdn = "cdn"
+	OssBucketCdn  = "cdn"
+	OssBucketBlog = "blog"
 )

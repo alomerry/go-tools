@@ -13,7 +13,7 @@ import (
 
 var (
 	cfg = meta.Config{
-		Type:      meta.ClientKodo,
+		Type:      meta.ClientTypeKodo,
 		Endpoint:  oss.KodoCdnDomain(),
 		AccessKey: oss.KodoAccessKey(),
 		SecretKey: oss.KodoSecretKey(),

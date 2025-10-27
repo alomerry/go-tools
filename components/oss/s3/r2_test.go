@@ -1,14 +1,40 @@
 package s3
 
-//func TestUploadFromLocalByCloudflareR2(t *testing.T) {
-//	oss := NewCloudflareR2(
-//		"742fd424ac4c88375eefc680a5c8ed2f",
-//		"00bd0c0bd54c2728aedbe9d98e2071d0",
-//		"d0e3cf529d3bafc220c10326ddd24a3386a88f46f43df902732588949422319e",
-//		// env.GetCloudflareAccountId(),
-//		// env.GetCloudflareR2AccountKey(),
-//		// env.GetCloudflareR2AccountSK(),
-//	)
-//
-//	fmt.Println(oss.UploadFromLocal(context.TODO(), cons.OssBucketCdn, "/Users/alomerry/workspace/go-tools/output/avatar.jpg", "blog/666.jpg"))
-//}
+import (
+	"context"
+	"testing"
+
+	"github.com/alomerry/go-tools/static/cons"
+	"github.com/alomerry/go-tools/static/env"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNewCloudflareR2_DownloadToFileByCloudflareR2(t *testing.T) {
+	oss, err := newCloudflareR2(
+		env.GetCloudflareAccountId(),
+		env.GetCloudflareR2AccountKey(),
+		env.GetCloudflareR2AccountSK(),
+	)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, oss)
+	// oss.UploadFromLocal(context.TODO(), cons.OssBucketCdn, "/Users/alomerry/workspace/go-tools/output/avatar.jpg", "blog/666.jpg")
+}
+
+func TestCloudflareR2_DownloadToFileByCloudflareR2(t *testing.T) {
+	oss, err := newCloudflareR2(
+		env.GetCloudflareAccountId(),
+		env.GetCloudflareR2AccountKey(),
+		env.GetCloudflareR2AccountSK(),
+	)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, oss)
+
+	ctx := context.TODO()
+
+	filePath, err := oss.Bucket(ctx, cons.OssBucketCdn).DownloadToFile(ctx, "backup/storage/mysql8/full_20251022_230101.sql.gz")
+	assert.Nil(t, err)
+	assert.Greater(t, len(filePath), 0)
+	t.Log(filePath)
+}

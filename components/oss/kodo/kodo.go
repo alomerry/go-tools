@@ -2,6 +2,9 @@ package kodo
 
 import (
 	"context"
+	"io"
+	"time"
+
 	"github.com/alomerry/go-tools/components/oss/meta"
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/static/env/oss"
@@ -11,8 +14,6 @@ import (
 	"github.com/qiniu/go-sdk/v7/storagev2/http_client"
 	"github.com/qiniu/go-sdk/v7/storagev2/region"
 	"github.com/qiniu/go-sdk/v7/storagev2/uploader"
-	"io"
-	"time"
 )
 
 type client struct {
@@ -72,7 +73,10 @@ func (q *client) DownloadToFile(ctx context.Context, objectKey string) (string, 
 		downloader.NewCredentialsSigner(q.cred),
 		&downloader.SignOptions{TTL: 1 * time.Hour})
 
-	tmpFileName := files.CreateTempFile(ctx, cons.EmptyStr)
+	tmpFileName, err := files.CreateTempFile(ctx, cons.EmptyStr, nil)
+	if err != nil {
+		return "", err
+	}
 
 	downloaded, err := q.dm.DownloadToFile(
 		ctx,
@@ -83,7 +87,7 @@ func (q *client) DownloadToFile(ctx context.Context, objectKey string) (string, 
 			DownloadURLsProvider: urlsProvider,
 		})
 	if err != nil {
-		return cons.EmptyStr, err
+		return "", err
 	}
 
 	if downloaded == 0 {

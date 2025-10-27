@@ -23,6 +23,18 @@ func GetCloudflareR2AccountKey() string {
 	return os.Getenv(cons.CloudflareR2AccountKey)
 }
 
+func GetRustfsEndpoint() string {
+	return os.Getenv(cons.RustFsEndpoint)
+}
+
+func GetRustfsAccessKey() string {
+	return os.Getenv(cons.RustFsAccessKey)
+}
+
+func GetRustfsSecretKey() string {
+	return os.Getenv(cons.RustFsSecretKey)
+}
+
 func GetWithLocalElasticSearchEndpoint() string {
 	if GetEnv() == cons.EnvLocal {
 		return os.Getenv(cons.LOCAL_ELASTICSEARCH_ENDPOINT)

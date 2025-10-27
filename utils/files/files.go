@@ -2,13 +2,10 @@ package files
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"path"
 	"strings"
-	"time"
-
-	"github.com/alomerry/go-tools/utils/random"
 )
 
 func GetFileName(filePath string) string {
@@ -23,13 +20,22 @@ func GetFileType(filePath string) string {
 	return res[len(res)-1]
 }
 
-func CreateTempFile(ctx context.Context, fileName string) string {
-	fullPath := path.Join("/tmp", fileName+"_"+time.Now().Format("20060102150405")+"_"+random.String(10))
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		_, err := os.Create(fileName)
-		if err != nil {
-			log.Panicf("create temp file failed, err %v", err)
-		}
+func CreateTempFile(ctx context.Context, fileName string, fn func(file *os.File) error) (string, error) {
+	file, err := os.CreateTemp("/tmp", fmt.Sprintf("*_%s", fileName))
+	if err != nil {
+		return "", nil
 	}
-	return fullPath
+	defer file.Close()
+
+	name := file.Name()
+	if fn == nil {
+		return name, nil
+	}
+
+	err = fn(file)
+	if err != nil {
+		return "", err
+	}
+
+	return name, nil
 }

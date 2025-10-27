@@ -30,4 +30,8 @@ const (
 	CloudflareAccountId    = "CLOUDFLARE_ACCOUNT_ID"
 	CloudflareR2AccountKey = "CLOUDFLARE_R2_ACCOUNT_KEY"
 	CloudflareR2AccountSK  = "CLOUDFLARE_R2_ACCOUNT_SK"
+
+	RustFsEndpoint  = "RUST_FS_ENDPOINT"
+	RustFsAccessKey = "RUST_FS_ACCESS_KEY"
+	RustFsSecretKey = "RUST_FS_SECRET_KEY"
 )
