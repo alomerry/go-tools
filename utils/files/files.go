@@ -23,7 +23,7 @@ func GetFileType(filePath string) string {
 func CreateTempFile(ctx context.Context, fileName string, fn func(file *os.File) error) (string, error) {
 	file, err := os.CreateTemp("/tmp", fmt.Sprintf("*_%s", fileName))
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	defer file.Close()
 
