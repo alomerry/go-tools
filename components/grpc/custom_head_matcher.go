@@ -2,7 +2,7 @@ package grpc
 
 import (
 	"github.com/alomerry/go-tools/static/cons"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 )
 
 // https://grpc-ecosystem.github.io/grpc-gateway/docs/tutorials/introduction/
