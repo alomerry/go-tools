@@ -33,7 +33,7 @@ func TestCloudflareR2_DownloadToFileByCloudflareR2(t *testing.T) {
 
 	ctx := context.TODO()
 
-	filePath, err := oss.Bucket(ctx, cons.OssBucketCdn).DownloadToFile(ctx, "backup/storage/mysql8/full_20251022_230101.sql.gz")
+	filePath, err := oss.Bucket(ctx, cons.OssBucketCdn).DownloadToFile(ctx, "backup/blog/markdowns.tar.gz")
 	assert.Nil(t, err)
 	assert.Greater(t, len(filePath), 0)
 	t.Log(filePath)

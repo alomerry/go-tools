@@ -18,12 +18,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-type CloudflareR2 struct {
+type cloudflareR2 struct {
 	client *s3.Client
 	bucket string
 }
 
-func NewDefaultCloudflareR2(cfg meta.Config) (*CloudflareR2, error) {
+func NewDefaultCloudflareR2(cfg meta.Config) (*cloudflareR2, error) {
 	if cfg.AccountId == "" || cfg.AccessKey == "" && cfg.SecretKey == "" {
 		return nil, errors.New("accountId or accessKey or secretKey is empty")
 	}
@@ -31,8 +31,8 @@ func NewDefaultCloudflareR2(cfg meta.Config) (*CloudflareR2, error) {
 	return newCloudflareR2(cfg.AccountId, cfg.AccessKey, cfg.SecretKey)
 }
 
-func newCloudflareR2(accountId, r2Key, r2Secret string) (*CloudflareR2, error) {
-	c := &CloudflareR2{}
+func newCloudflareR2(accountId, r2Key, r2Secret string) (*cloudflareR2, error) {
+	c := &cloudflareR2{}
 	r2Resolver := aws.EndpointResolverWithOptionsFunc(
 		func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 			return aws.Endpoint{
@@ -59,7 +59,7 @@ func newCloudflareR2(accountId, r2Key, r2Secret string) (*CloudflareR2, error) {
 	return c, nil
 }
 
-func (c *CloudflareR2) UploadFromLocal(ctx context.Context, bucket, filePath, ossPath string) (any, error) {
+func (c *cloudflareR2) UploadFromLocal(ctx context.Context, bucket, filePath, ossPath string) (any, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		log.Fatal(err)
@@ -76,17 +76,17 @@ func (c *CloudflareR2) UploadFromLocal(ctx context.Context, bucket, filePath, os
 	return resp, nil
 }
 
-func (c *CloudflareR2) PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error {
+func (c *cloudflareR2) PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error) {
+func (c *cloudflareR2) GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) DownloadToFile(ctx context.Context, objectKey string) (string, error) {
+func (c *cloudflareR2) DownloadToFile(ctx context.Context, objectKey string) (string, error) {
 	result, err := c.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(fmt.Sprintf("%s/%s", c.bucket, objectKey)),
@@ -110,38 +110,38 @@ func (c *CloudflareR2) DownloadToFile(ctx context.Context, objectKey string) (st
 	return fileFullPath, nil
 }
 
-func (c *CloudflareR2) RemoveObject(ctx context.Context, objectKey string) error {
+func (c *cloudflareR2) RemoveObject(ctx context.Context, objectKey string) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) StatObject(ctx context.Context, objectKey string) (meta.ObjectInfo, error) {
+func (c *cloudflareR2) StatObject(ctx context.Context, objectKey string) (meta.ObjectInfo, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
+func (c *cloudflareR2) PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) CreateBucket(ctx context.Context, bucketName string) error {
+func (c *cloudflareR2) CreateBucket(ctx context.Context, bucketName string) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) ListObjects(ctx context.Context, bucketName string, prefix string, recursive bool) ([]meta.ObjectInfo, error) {
+func (c *cloudflareR2) ListObjects(ctx context.Context, bucketName string, prefix string, recursive bool) ([]meta.ObjectInfo, error) {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) RemoveBucket(ctx context.Context, bucketName string) error {
+func (c *cloudflareR2) RemoveBucket(ctx context.Context, bucketName string) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c *CloudflareR2) Bucket(_ context.Context, bucketName string) meta.OSSClient {
-	return &CloudflareR2{
+func (c *cloudflareR2) Bucket(_ context.Context, bucketName string) meta.OSSClient {
+	return &cloudflareR2{
 		client: c.client,
 		bucket: bucketName,
 	}

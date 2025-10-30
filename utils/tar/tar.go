@@ -11,7 +11,6 @@ import (
 )
 
 func UnTar(src, dst string) error {
-
 	// 首先检查文件是否存在和大小
 	_, err := os.Stat(src)
 	if err != nil {

@@ -14,3 +14,10 @@ func FirstNotBlank(strs ...string) string {
 	}
 	return ""
 }
+
+func Limit(str string, limit int) string {
+	if len(str) > limit {
+		return str[:limit]
+	}
+	return str
+}
