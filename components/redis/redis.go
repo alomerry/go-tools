@@ -1,8 +1,10 @@
 package redis
 
 import (
-	"github.com/redis/go-redis/v9"
 	"log"
+	"strings"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func NewRedisClient(url string) *redis.Client {
@@ -13,4 +15,8 @@ func NewRedisClient(url string) *redis.Client {
 	}
 
 	return redis.NewClient(opt)
+}
+
+func GenRedisKey(category string, args ...string) string {
+	return category + ":" + strings.Join(args, ":")
 }
