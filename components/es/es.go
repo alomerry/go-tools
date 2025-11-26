@@ -35,7 +35,7 @@ func NewClient(opts ...Option) *Client {
 	}
 	cfg := elasticsearch.Config{
 		Addresses: []string{
-			str_utils.FirstNotBlank(client.endpoint, env.GetWithLocalElasticSearchEndpoint()),
+			str_utils.FirstNotBlank(client.endpoint, env.GetElasticSearchEndpoint()),
 		},
 		APIKey: str_utils.FirstNotBlank(client.apiKey, env.GetElasticSearchAK()),
 	}

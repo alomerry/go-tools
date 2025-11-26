@@ -11,7 +11,15 @@ func GetService() string {
 	return os.Getenv(cons.Service)
 }
 
-func GetElasticSearchEndpoint() string {
+func GetElasticSearchEndpoint(defaultVal ...string) string {
+	if Local() {
+		return os.Getenv(cons.LOCAL_ELASTICSEARCH_ENDPOINT)
+	}
+
+	if len(defaultVal) > 0 && len(defaultVal[0]) > 0 {
+		return defaultVal[0]
+	}
+
 	return os.Getenv(cons.ELASTICSEARCH_ENDPOINT)
 }
 
@@ -39,19 +47,16 @@ func GetRustfsSecretKey() string {
 	return os.Getenv(cons.RustFsSecretKey)
 }
 
-func GetWithLocalElasticSearchEndpoint() string {
-	if GetEnv() == cons.EnvLocal {
-		return os.Getenv(cons.LOCAL_ELASTICSEARCH_ENDPOINT)
-	}
-	return GetElasticSearchEndpoint()
-}
-
 func GetElasticSearchAK() string {
 	return os.Getenv(cons.ELASTICSEARCH_PASSWORD)
 }
 
 func Debug() bool {
 	return os.Getenv(cons.DEBUG) == cons.DEBUG
+}
+
+func Local() bool {
+	return GetEnv() == cons.EnvLocal
 }
 
 func GetEnv() string {
@@ -70,37 +75,39 @@ func GetJwtSecret() string {
 	return os.Getenv(cons.JWT_SECRET)
 }
 
-func GetRedisDSN() string {
+func GetRedisDSN(defaultVal ...string) string {
+	if Local() {
+		return os.Getenv(cons.LOCAL_REDIS_DSN)
+	}
+
+	if len(defaultVal) > 0 && len(defaultVal[0]) > 0 {
+		return defaultVal[0]
+	}
+
 	return os.Getenv(cons.REDIS_DSN)
 }
 
-func GetWithLocalRedisDSN() string {
-	if GetEnv() == cons.EnvLocal {
-		return os.Getenv(cons.LOCAL_REDIS_DSN)
+func GetRedisAK(defaultVal ...string) string {
+	if Local() {
+		return os.Getenv(cons.LOCAL_REDIS_AK)
 	}
-	return GetRedisDSN()
-}
 
-func GetRedisAK() string {
+	if len(defaultVal) > 0 && len(defaultVal[0]) > 0 {
+		return defaultVal[0]
+	}
+
 	return os.Getenv(cons.REDIS_AK)
 }
 
-func GetWithLocalRedisAK() string {
-	if GetEnv() == cons.EnvLocal {
-		return os.Getenv(cons.LOCAL_REDIS_AK)
-	}
-	return GetRedisAK()
-}
-
-func GetMysqlAdminDSN() string {
-	return os.Getenv(cons.MYSQL_ADMIN_DSN)
-}
-
-func GetWithLocalMysqlAdminDSN() string {
-	if GetEnv() == cons.EnvLocal {
+func GetMysqlAdminDSN(defaultVal ...string) string {
+	if Local() {
 		return os.Getenv(cons.LOCAL_MYSQL_ADMIN_DSN)
 	}
-	return GetMysqlAdminDSN()
+
+	if len(defaultVal) > 0 && len(defaultVal[0]) > 0 {
+		return defaultVal[0]
+	}
+	return os.Getenv(cons.MYSQL_ADMIN_DSN)
 }
 
 func GetRedisClusterDSN() []string {
