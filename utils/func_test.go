@@ -15,6 +15,7 @@ func TestFuncCaller_Call(t *testing.T) {
 	fc.Register("demo1", demo1)
 	fc.Register("demo2", demo2)
 	fc.Register("new", newCallerTest)
+	fc.Register("new2", newCallerTest2)
 
 	res, err := fc.Call("demo1", "test1")
 	assert.Nil(t, err)
@@ -35,6 +36,15 @@ func TestFuncCaller_Call(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 1, len(res))
 	assert.Equal(t, "obj-sleep", res[0].String())
+
+	res, err = fc.Call("new2")
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(res))
+	obj = res[0].Interface()
+	res, err = CallMethodByName(obj, "Do", "sleep6")
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(res))
+	assert.Equal(t, "test2-sleep6", res[0].String())
 
 	/*res, err = CallMethodByName(obj, "do", "eat")
 	assert.Nil(t, err)
@@ -69,4 +79,8 @@ func (c *callerTest) Do(doWhat string) string {
 
 func newCallerTest(name string) waitCaller {
 	return &callerTest{name: name}
+}
+
+func newCallerTest2() waitCaller {
+	return &callerTest{name: "test2"}
 }

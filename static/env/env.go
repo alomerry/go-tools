@@ -7,6 +7,10 @@ import (
 	"github.com/alomerry/go-tools/static/cons"
 )
 
+func GetService() string {
+	return os.Getenv(cons.Service)
+}
+
 func GetElasticSearchEndpoint() string {
 	return os.Getenv(cons.ELASTICSEARCH_ENDPOINT)
 }

@@ -34,4 +34,6 @@ const (
 	RustFsEndpoint  = "RUST_FS_ENDPOINT"
 	RustFsAccessKey = "RUST_FS_ACCESS_KEY"
 	RustFsSecretKey = "RUST_FS_SECRET_KEY"
+
+	Service = "SERVICE"
 )
