@@ -6,3 +6,8 @@ const (
 	ApolloHost      = "APOLLO_HOST"
 	ApolloCluster   = "APOLLO_CLUSTER"
 )
+
+const (
+	ApolloValTypeString = "string"
+	ApolloValTypeJson   = "json"
+)

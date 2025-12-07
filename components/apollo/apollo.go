@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log"
 	"reflect"
+	"strings"
 	"sync"
 
+	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/static/env"
 	"github.com/apolloconfig/agollo/v4"
 	"github.com/apolloconfig/agollo/v4/env/config"
@@ -13,7 +15,9 @@ import (
 
 var (
 	initOnce = sync.Once{}
+
 	client   agollo.Client
+	listener *apolloListener
 )
 
 func Init(appId string) {
@@ -34,10 +38,11 @@ func Init(appId string) {
 		})
 
 		if err != nil {
-			log.Panicf("init apollo failed, err %v", err)
+			log.Panicf("init apollo failed, err: %v", err)
 		}
 
-		client.AddChangeListener(&apolloListener{})
+		listener = newApolloListener()
+		client.AddChangeListener(listener)
 	})
 }
 
@@ -49,7 +54,7 @@ func Get(name string) (any, error) {
 
 func GetJson[T any](name string, dist *T) error {
 	cache := client.GetConfigCache(env.ApolloNamespace())
-	value, err := cache.Get(name)
+	value, err := cache.Get(strings.TrimSuffix(name, ",dynamic"))
 	if err != nil {
 		return err
 	}
@@ -61,5 +66,11 @@ func GetJson[T any](name string, dist *T) error {
 		log.Panicf("unsupport type %v", reflect.TypeOf(value))
 	}
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	_ = listener.TryWatchKey(name, cons.ApolloValTypeJson, dist)
+
+	return nil
 }
