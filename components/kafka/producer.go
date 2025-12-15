@@ -57,3 +57,7 @@ func NewDefaultProducer(ctx context.Context, opts ...Option) (*Producer, error) 
 	}
 	return p, nil
 }
+
+func (p *Producer) Write(ctx context.Context, msg ...kafka.Message) error {
+	return p.writer.WriteMessages(ctx, msg...)
+}
