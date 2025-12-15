@@ -113,3 +113,11 @@ func GetMysqlAdminDSN(defaultVal ...string) string {
 func GetRedisClusterDSN() []string {
 	return strings.Split(os.Getenv(cons.REDIS_CLUSTER_DSN), ",")
 }
+
+func GetKafkaUserName() string {
+	return os.Getenv(cons.KafkaUser)
+}
+
+func GetKafkaPassword() string {
+	return os.Getenv(cons.KafkaPassword)
+}

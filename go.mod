@@ -24,6 +24,7 @@ require (
 	github.com/qiniu/go-sdk/v7 v7.25.4
 	github.com/qiniu/qmgo v1.1.10
 	github.com/redis/go-redis/v9 v9.16.0
+	github.com/segmentio/kafka-go v0.4.49
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cast v1.10.0
@@ -111,6 +112,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/peterbourgon/diskv/v3 v3.0.1 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
