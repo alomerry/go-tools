@@ -1,16 +1,6 @@
 package tsdb
 
-import (
-	"context"
-	"os"
-	"testing"
-	"time"
-
-	"github.com/alomerry/go-tools/components/tsdb/def"
-	"github.com/stretchr/testify/assert"
-)
-
-// TestNewPointBuilder tests the exported NewPointBuilder function
+/*// TestNewPointBuilder tests the exported NewPointBuilder function
 func TestNewPointBuilder(t *testing.T) {
 	t.Run("creates point builder", func(t *testing.T) {
 		builder := NewPointBuilder("temperature")
@@ -237,4 +227,4 @@ func TestMetric_Integration(t *testing.T) {
 		err := metric.LogPoints("test-bucket", []def.Point{})
 		assert.NoError(t, err)
 	})
-}
+}*/

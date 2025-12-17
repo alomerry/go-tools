@@ -1,19 +1,6 @@
 package internal
 
-import (
-	"context"
-	"errors"
-	"fmt"
-	"time"
-
-	"github.com/alomerry/go-tools/components/tsdb/def"
-	"github.com/alomerry/go-tools/static/env/influxdb"
-	tsdb_err "github.com/alomerry/go-tools/static/errors/tsdb"
-	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
-	"github.com/influxdata/influxdb-client-go/v2/api"
-)
-
-type defaultCat struct {
+/*type defaultCat struct {
 	*def.Meta
 	client    influxdb2.Client
 	writeAPIs map[string]api.WriteAPIBlocking // cache for write APIs
@@ -177,3 +164,4 @@ func (d *defaultCat) Close() error {
 	}
 	return nil
 }
+*/

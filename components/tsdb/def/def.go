@@ -5,7 +5,48 @@ import (
 	"time"
 )
 
-type Option func(*Meta)
+// Point represents a single data point to be written to InfluxDB
+type Point struct {
+	Measurement string
+	Tags        map[string]string
+	Fields      map[string]any
+	Time        time.Time
+}
+
+// Metric is the main interface for writing metrics to InfluxDB
+type Metric1 interface {
+	// LogPoint writes a single point to the specified bucket
+	LogPoint(bucket, measurement string, tags map[string]string, fields map[string]any) error
+
+	// LogPointWithTime writes a single point with a specific timestamp
+	LogPointWithTime(bucket, measurement string, tags map[string]string, fields map[string]any, date time.Time) error
+
+	// LogPoints writes multiple points in a batch (more efficient)
+	LogPoints(bucket string, points []Point) error
+
+	// LogPointToDefault writes to the default bucket if configured
+	LogPointToDefault(measurement string, tags map[string]string, fields map[string]any) error
+
+	// Counter increments a counter metric
+	Counter(bucket, measurement string, tags map[string]string, value float64) error
+
+	// Gauge sets a gauge metric value
+	Gauge(bucket, measurement string, tags map[string]string, value float64) error
+
+	// Histogram records a histogram value
+	Histogram(bucket, measurement string, tags map[string]string, value float64) error
+
+	// Summary records a summary value
+	Summary(bucket, measurement string, tags map[string]string, value float64) error
+
+	// Ping checks if the InfluxDB connection is healthy
+	Ping(ctx context.Context) error
+
+	// Close closes the client connection and releases resources
+	Close() error
+}
+
+/*type Option func(*Meta)
 
 type Meta struct {
 	Org      string // organization
@@ -36,47 +77,6 @@ func WithBucket(bucket string) Option {
 	return func(meta *Meta) {
 		meta.Bucket = bucket
 	}
-}
-
-// Point represents a single data point to be written to InfluxDB
-type Point struct {
-	Measurement string
-	Tags        map[string]string
-	Fields      map[string]any
-	Time        time.Time
-}
-
-// Metric is the main interface for writing metrics to InfluxDB
-type Metric interface {
-	// LogPoint writes a single point to the specified bucket
-	LogPoint(bucket, measurement string, tags map[string]string, fields map[string]any) error
-
-	// LogPointWithTime writes a single point with a specific timestamp
-	LogPointWithTime(bucket, measurement string, tags map[string]string, fields map[string]any, date time.Time) error
-
-	// LogPoints writes multiple points in a batch (more efficient)
-	LogPoints(bucket string, points []Point) error
-
-	// LogPointToDefault writes to the default bucket if configured
-	LogPointToDefault(measurement string, tags map[string]string, fields map[string]any) error
-
-	// Counter increments a counter metric
-	Counter(bucket, measurement string, tags map[string]string, value float64) error
-
-	// Gauge sets a gauge metric value
-	Gauge(bucket, measurement string, tags map[string]string, value float64) error
-
-	// Histogram records a histogram value
-	Histogram(bucket, measurement string, tags map[string]string, value float64) error
-
-	// Summary records a summary value
-	Summary(bucket, measurement string, tags map[string]string, value float64) error
-
-	// Ping checks if the InfluxDB connection is healthy
-	Ping(ctx context.Context) error
-
-	// Close closes the client connection and releases resources
-	Close() error
 }
 
 // PointBuilder helps build points with a fluent API
@@ -140,3 +140,4 @@ func (pb *PointBuilder) Build() Point {
 		Time:        pb.time,
 	}
 }
+*/

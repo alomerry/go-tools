@@ -1,16 +1,69 @@
 package internal
 
 import (
-	"context"
+	"encoding/json"
 	"os"
 	"testing"
-	"time"
-
-	"github.com/alomerry/go-tools/components/tsdb/def"
-	"github.com/stretchr/testify/assert"
 )
 
-func TestNewDefaultCat(t *testing.T) {
+//     [{"c": 391,"sf": 1,"sl": 0,"sc": 197},{"c": 391,"sf": 1,"sl": 0,"sc": 197}]
+// =>  [{"index": 0, "c": 391,"sf": 1,"sl": 0,"sc": 197},{"index": 1, "c": 391,"sf": 1,"sl": 0,"sc": 197}]
+
+type File struct {
+	Lines  []Data `json:"lines"`
+	LineNo int    `json:"lineNo"`
+}
+
+type Data struct {
+	Index int `json:"index"`
+	C     int `json:"c"`
+	Sf    int `json:"sf"`
+	Sl    int `json:"sl"`
+	Sc    int `json:"sc"`
+}
+
+func TestJson(t *testing.T) {
+	var (
+		files    []File
+		resFiles []File
+	)
+	var data, err = os.ReadFile("/Users/alomerry/Downloads/Untitled-3.json")
+
+	if err != nil {
+		panic(err)
+	}
+
+	files = Unmarshal(string(data))
+	for _, file := range files {
+		var dataList []Data
+		for index, item := range file.Lines {
+			dataList = append(dataList, Data{Index: index, C: item.C, Sf: item.Sf, Sl: item.Sl, Sc: item.Sc})
+		}
+
+		resFiles = append(resFiles, File{Lines: dataList, LineNo: file.LineNo})
+	}
+
+	// write to file
+	res, err := json.Marshal(resFiles)
+	if err != nil {
+		panic(err)
+	}
+	err = os.WriteFile("/Users/alomerry/workspace/go/go-tools/output/a.json", res, 0644)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func Unmarshal(data string) []File {
+	var dataList []File
+	err := json.Unmarshal([]byte(data), &dataList)
+	if err != nil {
+		panic(err)
+	}
+	return dataList
+}
+
+/*func TestNewDefaultCat(t *testing.T) {
 	t.Run("creates cat with options", func(t *testing.T) {
 		ctx := context.Background()
 		cat, err := NewDefaultCat(ctx,
@@ -18,13 +71,13 @@ func TestNewDefaultCat(t *testing.T) {
 			def.WithOrg("test-org"),
 			def.WithToken("test-token"),
 		)
-		
+
 		// May fail if InfluxDB is not running
 		if err != nil {
 			t.Logf("Expected error when InfluxDB is not available: %v", err)
 			return
 		}
-		
+
 		assert.NotNil(t, cat)
 		if cat != nil {
 			defer cat.Close()
@@ -54,7 +107,7 @@ func TestNewDefaultCat(t *testing.T) {
 		originalEndpoint := os.Getenv("INFLUXDB_ENDPOINT")
 		originalOrg := os.Getenv("INFLUXDB_ORG")
 		originalToken := os.Getenv("INFLUXDB_TOKEN")
-		
+
 		defer func() {
 			if originalEndpoint != "" {
 				os.Setenv("INFLUXDB_ENDPOINT", originalEndpoint)
@@ -76,15 +129,15 @@ func TestNewDefaultCat(t *testing.T) {
 		os.Setenv("INFLUXDB_ENDPOINT", "http://test:8086")
 		os.Setenv("INFLUXDB_ORG", "test-org")
 		os.Setenv("INFLUXDB_TOKEN", "test-token")
-		
+
 		ctx := context.Background()
 		cat, err := NewDefaultCat(ctx)
-		
+
 		if err != nil {
 			t.Logf("Expected error when InfluxDB is not available: %v", err)
 			return
 		}
-		
+
 		assert.NotNil(t, cat)
 		if cat != nil {
 			defer cat.Close()
@@ -103,19 +156,19 @@ func TestNewDefaultCat(t *testing.T) {
 		}()
 
 		os.Setenv("INFLUXDB_TOKEN", "env-token")
-		
+
 		ctx := context.Background()
 		cat, err := NewDefaultCat(ctx,
 			def.WithEndpoint("http://localhost:8086"),
 			def.WithOrg("test-org"),
 			def.WithToken("option-token"),
 		)
-		
+
 		if err != nil {
 			t.Logf("Expected error when InfluxDB is not available: %v", err)
 			return
 		}
-		
+
 		assert.NotNil(t, cat)
 		if cat != nil {
 			defer cat.Close()
@@ -128,7 +181,7 @@ func TestDefaultCat_LogPoint(t *testing.T) {
 	endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
-	
+
 	if endpoint == "" || org == "" || token == "" {
 		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 	}
@@ -139,7 +192,7 @@ func TestDefaultCat_LogPoint(t *testing.T) {
 		def.WithOrg(org),
 		def.WithToken(token),
 	)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to create cat: %v", err)
 	}
@@ -166,7 +219,7 @@ func TestDefaultCat_LogPointWithTime(t *testing.T) {
 	endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
-	
+
 	if endpoint == "" || org == "" || token == "" {
 		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 	}
@@ -177,7 +230,7 @@ func TestDefaultCat_LogPointWithTime(t *testing.T) {
 		def.WithOrg(org),
 		def.WithToken(token),
 	)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to create cat: %v", err)
 	}
@@ -198,7 +251,7 @@ func TestDefaultCat_LogPoints(t *testing.T) {
 	endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
-	
+
 	if endpoint == "" || org == "" || token == "" {
 		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 	}
@@ -209,7 +262,7 @@ func TestDefaultCat_LogPoints(t *testing.T) {
 		def.WithOrg(org),
 		def.WithToken(token),
 	)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to create cat: %v", err)
 	}
@@ -254,7 +307,7 @@ func TestDefaultCat_LogPointToDefault(t *testing.T) {
 	endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
-	
+
 	if endpoint == "" || org == "" || token == "" {
 		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 	}
@@ -266,7 +319,7 @@ func TestDefaultCat_LogPointToDefault(t *testing.T) {
 		def.WithToken(token),
 		def.WithBucket("test-bucket"),
 	)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to create cat: %v", err)
 	}
@@ -303,7 +356,7 @@ func TestDefaultCat_MetricTypes(t *testing.T) {
 	endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
-	
+
 	if endpoint == "" || org == "" || token == "" {
 		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 	}
@@ -314,7 +367,7 @@ func TestDefaultCat_MetricTypes(t *testing.T) {
 		def.WithOrg(org),
 		def.WithToken(token),
 	)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to create cat: %v", err)
 	}
@@ -357,7 +410,7 @@ func TestDefaultCat_Ping(t *testing.T) {
 	endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
-	
+
 	if endpoint == "" || org == "" || token == "" {
 		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 	}
@@ -368,7 +421,7 @@ func TestDefaultCat_Ping(t *testing.T) {
 		def.WithOrg(org),
 		def.WithToken(token),
 	)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to create cat: %v", err)
 	}
@@ -385,7 +438,7 @@ func TestDefaultCat_Close(t *testing.T) {
 		endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 		org := os.Getenv("INFLUXDB_ORG")
 		token := os.Getenv("INFLUXDB_TOKEN")
-		
+
 		if endpoint == "" || org == "" || token == "" {
 			t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 		}
@@ -396,7 +449,7 @@ func TestDefaultCat_Close(t *testing.T) {
 			def.WithOrg(org),
 			def.WithToken(token),
 		)
-		
+
 		if err != nil {
 			t.Fatalf("Failed to create cat: %v", err)
 		}
@@ -422,7 +475,7 @@ func TestDefaultCat_WriteAPICaching(t *testing.T) {
 	endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
-	
+
 	if endpoint == "" || org == "" || token == "" {
 		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
 	}
@@ -433,7 +486,7 @@ func TestDefaultCat_WriteAPICaching(t *testing.T) {
 		def.WithOrg(org),
 		def.WithToken(token),
 	)
-	
+
 	if err != nil {
 		t.Fatalf("Failed to create cat: %v", err)
 	}
@@ -467,5 +520,4 @@ func TestDefaultCat_WriteAPICaching(t *testing.T) {
 		)
 		assert.NoError(t, err2)
 	})
-}
-
+}*/

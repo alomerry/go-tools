@@ -1,13 +1,6 @@
 package tsdb
 
-import (
-	"context"
-
-	"github.com/alomerry/go-tools/components/tsdb/def"
-	"github.com/alomerry/go-tools/components/tsdb/internal"
-	"github.com/alomerry/go-tools/static/env/influxdb"
-)
-
+/*
 // NewMetric creates a new Metric client for writing to InfluxDB.
 // It uses environment variables as defaults if options are not provided.
 //
@@ -64,4 +57,4 @@ func NewMetricWithDefaults(ctx context.Context, options ...def.Option) (def.Metr
 //		Build()
 func NewPointBuilder(measurement string) *def.PointBuilder {
 	return def.NewPointBuilder(measurement)
-}
+}*/
