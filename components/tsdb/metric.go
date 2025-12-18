@@ -54,3 +54,13 @@ func (m *metric) LogForCnt(count int64) {
 	m.LVals["cnt"] = count
 	internal.AsyncWrite(m)
 }
+
+func (m *metric) LogForLongVal(count int64) {
+	m.LVals["cnt"] = count
+	internal.AsyncWrite(m)
+}
+
+func (m *metric) LogForDoubleVal(count int64) {
+	m.LVals["cnt"] = count
+	internal.AsyncWrite(m)
+}
