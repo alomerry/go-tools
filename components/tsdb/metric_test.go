@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/alomerry/go-tools/components/kafka"
-	"github.com/alomerry/go-tools/components/tsdb/internal"
 	"github.com/alomerry/go-tools/static/env"
 	"github.com/stretchr/testify/assert"
 )
@@ -20,10 +19,8 @@ func TestAddMetricMsg(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	Init(WithProducer(producer))
+	Init(producer)
 	m := NewMetric(WithMetric("test"), WithTag("type", "6666")).(*metric)
-	m.LVals["cnt"] = 1
-
-	err = internal.Write(m)
+	m.LogForCnt()
 	assert.Nil(t, err)
 }

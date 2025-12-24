@@ -161,6 +161,7 @@ func CollectStats() (*SystemStats, error) {
 			usage, err := disk.Usage(part.Mountpoint)
 			if err == nil {
 				stats.DiskUsage[part.Mountpoint] = usage.UsedPercent
+				logrus.Infof("磁盘使用率: %s: %.2f%%", part.Mountpoint, usage.UsedPercent)
 			}
 		}
 	}

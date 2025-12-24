@@ -2,63 +2,36 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/alomerry/go-tools/components/kafka"
-	"github.com/alomerry/go-tools/components/tsdb/def"
 	kafka2 "github.com/segmentio/kafka-go"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 )
 
 var (
-	mb   def.MetricWriter
-	once = sync.Once{}
+	pool     chan Serializer
+	producer *kafka.Producer
+	once     = sync.Once{}
 )
 
-func InitMetricWriter(producer *kafka.Producer) {
-	once.Do(func() {
-		mb = &metricWriter{
-			producer: producer,
-			ch:       make(chan []byte, 1000),
-		}
-
-		go mb.(*metricWriter).run()
-	})
+type Serializer interface {
+	Encode() ([]byte, error)
+	Decode([]byte) error
 }
 
-func AsyncWrite(metric def.Metric) {
-	mb.AsyncWrite(metric)
+func AsyncWrite(s Serializer) {
+	pool <- s
 }
 
-func Write(metric def.Metric) error {
-	return mb.Write(metric)
-}
-
-type metricWriter struct {
-	producer *kafka.Producer
-
-	ch chan []byte
-}
-
-func (m *metricWriter) AsyncWrite(metric def.Metric) {
-	data, err := json.Marshal(metric)
+func Write(s Serializer) error {
+	data, err := s.Encode()
 	if err != nil {
-		logrus.WithField("err", err).Errorf("marshal metric error")
-		return
-	}
-	m.ch <- data
-}
-
-func (m *metricWriter) Write(metric def.Metric) error {
-	data, err := json.Marshal(metric)
-	if err != nil {
-		logrus.WithField("err", err).Errorf("marshal metric error")
 		return err
 	}
-	err = m.producer.Write(context.TODO(), kafka2.Message{
+	err = producer.Write(context.TODO(), kafka2.Message{
 		Key: []byte(cast.ToString(time.Now().Unix())), Value: data,
 	})
 	if err != nil {
@@ -68,11 +41,25 @@ func (m *metricWriter) Write(metric def.Metric) error {
 	return nil
 }
 
-func (m *metricWriter) run() {
+func InitMetricWriter(p *kafka.Producer) {
+	once.Do(func() {
+		producer = p
+		pool = make(chan Serializer, 1000)
+		go run()
+	})
+}
+
+func run() {
 	for {
 		select {
-		case data := <-m.ch:
-			err := m.producer.Write(context.TODO(), kafka2.Message{
+		case it := <-pool:
+			data, err := it.Encode()
+			if err != nil {
+				logrus.WithField("err", err.Error()).Errorf("metric encode failed")
+				continue
+			}
+
+			err = producer.Write(context.TODO(), kafka2.Message{
 				Key: []byte(cast.ToString(time.Now().Unix())), Value: data,
 			})
 			if err != nil {
