@@ -7,6 +7,7 @@ import (
 
 type Point struct {
 	Measurement string
+	Bucket      string
 	Tags        map[string]string
 	Fields      map[string]any
 	Time        time.Time

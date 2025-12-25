@@ -3,6 +3,7 @@ package tsdb
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"github.com/alomerry/go-tools/components/kafka"
 	"github.com/alomerry/go-tools/components/tsdb/internal"
@@ -35,6 +36,7 @@ type metric struct {
 	Tags        map[string]string `json:"tags"`
 	Bucket      string            `json:"bucket"`
 	Fields      map[string]any    `json:"fields"`
+	Timestamp   int64             `json:"timestamp"`
 }
 
 func NewMetric(opts ...func(any)) Metric {
@@ -60,6 +62,7 @@ func (m *metric) LogForCnt(count ...int64) {
 		cnt = count[0]
 	}
 	m.Fields["cnt"] = cnt
+	m.Timestamp = time.Now().UnixMilli()
 	internal.AsyncWrite(m)
 }
 
@@ -71,6 +74,7 @@ func (m *metric) LogForVal(mapper map[string]any) {
 		m.Fields["cnt"] = 1
 	}
 
+	m.Timestamp = time.Now().UnixMilli()
 	internal.AsyncWrite(m)
 }
 
