@@ -38,5 +38,7 @@ const (
 	RustFsAccessKey = "RUST_FS_ACCESS_KEY"
 	RustFsSecretKey = "RUST_FS_SECRET_KEY"
 
+	MongoDSN = "MONGO_DSN"
+
 	Service = "SERVICE"
 )

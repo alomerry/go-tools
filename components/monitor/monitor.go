@@ -110,6 +110,8 @@ type SystemStats struct {
 
 	DiskUsage map[string]float64
 	LoadAvg   [3]float64
+
+	Ip string
 }
 
 func CollectStats() (*SystemStats, error) {
@@ -183,7 +185,11 @@ func CollectStats() (*SystemStats, error) {
 		if len(ips) == 0 {
 			continue
 		}
-		logrus.Infof("接口: %s (%s)", i.Name, strings.Join(ips, " "))
+
+		if i.Name == "eth0" {
+			stats.Ip = strings.Split(ips[0], "/")[0]
+		}
+		// logrus.Infof("接口: %s (%s)", i.Name, strings.Join(ips, " "))
 	}
 
 	avg, err := load.Avg()
