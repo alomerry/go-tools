@@ -1,222 +1,238 @@
 # go-tools
 
-go-tools contains several tools
+A comprehensive Go utility library providing various components, modules, and utilities for common development tasks.
 
 [![go report](https://goreportcard.com/badge/github.com/alomerry/go-tools)](https://goreportcard.com/report/github.com/alomerry/go-tools)
 
-## Requirement
+## Requirements
 
-- `Go 1.21` and above.
+- Go 1.25.0 and above
 
-## Build
+## Installation
 
-`CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o ./output/go-tools main.go &&upx ./output/go-tools`
+```bash
+go get github.com/alomerry/go-tools
+```
 
-## Usage
+## Overview
 
-- [DB backup](utils/db/dump.go)
-- [DNS](modules/dns/README.md)
-- [pusher](./pusher/README.md)
-- [sgs delay](./sgs/README.md)
-- algorithm
+This library is organized into three main categories:
 
-## Copier
+- **Components**: Reusable client wrappers for various services
+- **Modules**: Standalone tools and utilities
+- **Utils**: General-purpose utility functions
 
-Copier for golang, copy value from struct to struct. Extends structmapper(https://github.com/structmapper/structmapper)
+## Components
 
-### Feature
+### Configuration Management
 
-- overwrite 支持在已有对象上增量复制，仅支持 struct to struct
-- transformer 支持在复制过程中的自定义处理，支持多级
-- reset different field name 支持不同名字段复制
+- **Apollo** (`components/apollo`): Apollo configuration center client with change listeners
 
-### Usage
+### Databases
 
-<details>
+- **MySQL** (`components/mysql`): MySQL database client
+- **MongoDB** (`components/mongo`): MongoDB client wrapper
+- **Redis** (`components/redis`): Redis client with key generation utilities
 
-<summary>Copy and set custom field</summary>
+### Message Queue & Streaming
+
+- **Kafka** (`components/kafka`): Kafka client for topic management, message production, and metadata operations
+
+### Object Storage (OSS)
+
+- **OSS** (`components/oss`): Unified OSS client supporting multiple providers:
+  - Qiniu Kodo
+  - MinIO
+  - AWS S3
+  - Cloudflare R2
+
+### Time Series Database
+
+- **TSDB** (`components/tsdb`): Time series database client, currently supports InfluxDB
+
+### Search & Analytics
+
+- **Elasticsearch** (`components/es`): Elasticsearch typed client wrapper
+
+### Infrastructure
+
+- **Kubernetes** (`components/k8s`): Kubernetes client for managing deployments, pods, services, and resources
+- **gRPC** (`components/grpc`): gRPC utilities including custom header matchers
+
+### Monitoring & Logging
+
+- **Monitor** (`components/monitor`): System monitoring with CPU, memory, disk, and network statistics
+- **Log** (`components/log`): Logrus formatter and logging utilities
+
+## Modules
+
+### DNS Tools
+
+- **DNS** (`modules/dns`): DNS management tools supporting:
+  - Alibaba Cloud DNS (AliDNS)
+  - Cloudflare DNS
+
+### File Management
+
+- **Pusher** (`modules/pusher`): File upload tool for OSS with support for:
+  - File existence checking
+  - Automatic upload on file changes
+  - Cloudflare R2 support
+
+### Excel Processing
+
+- **SGS** (`modules/sgs`): Excel processing tools for delay analysis and reporting
+
+## Utils
+
+### Data Structures
+
+- **Algorithm** (`utils/algorithm`):
+  - Binary Search Tree (BST)
+  - Queue
+  - Set (generic implementation)
+
+### Database Utilities
+
+- **DB** (`utils/db`): Database backup tools
+  - MySQL dump functionality
+  - MongoDB ObjectID utilities
+
+### File Operations
+
+- **Files** (`utils/files`): File manipulation utilities
+- **Tar** (`utils/tar`): TAR archive operations
+- **Zip** (`utils/zip`): ZIP archive operations
+
+### Data Processing
+
+- **JSON** (`utils/json`): JSON processing utilities
+- **Array** (`utils/array`): Array manipulation functions
+- **Maps** (`utils/maps`): Concurrent map implementations
+- **String** (`utils/string`): String utility functions
+- **Random** (`utils/random`): Random string generation
+
+### Network & Web
+
+- **Net** (`utils/net`): Network utilities
+- **UA** (`utils/ua`): User-Agent parsing utilities
+
+### Security & Authentication
+
+- **JWT** (`utils/jwt`): JWT token generation and validation
+
+### Time & Context
+
+- **Time** (`utils/time`): Time utility functions
+- **Context** (`utils/context.go`): Context utilities
+
+### Other Utilities
+
+- **Base** (`utils/base`): Base utility functions
+- **Vars** (`utils/vars`): Variable utilities
+- **Func** (`utils/func.go`): Function utilities
+- **Struct** (`utils/struct.go`): Struct reflection utilities
+
+## Static
+
+The `static` directory contains configuration constants, environment variable helpers, and error definitions:
+
+- **Cons** (`static/cons`): Application constants
+- **Env** (`static/env`): Environment variable helpers
+- **Errors** (`static/errors`): Error definitions
+
+## Usage Examples
+
+### OSS Client
 
 ```go
-type Location struct {
-	City      string
-	Latitude  float64
-	Longitude float66
-}
-type originModel struct {
-	Name     string
-	BirthDay time.Time
-	StoreId  string
-}
-type targetModel struct {
-	Id         string
-	TargetName string
-	Name       string
-	CreatedAt  string
-	Location   *Location
-}
-func TestTransformerModelToProto() {
-	var targets []targetModel
-	locationMapper := map[string]*Location{
-		"12306": &Location{
-			City:      "ShangHai",
-			Latitude:  234.123412,
-			Longitude: 3423.43265,
-		},
-	}
+import "github.com/alomerry/go-tools/components/oss"
+import "github.com/alomerry/go-tools/components/oss/meta"
 
-	origins := []originModel{
-		{
-			Name:     "MockModel1",
-			BirthDay: time.Now(),
-			StoreId:  "12306",
-		},
-		{
-			Name:     "MockModel2",
-			BirthDay: time.Now(),
-			StoreId:  "12345",
-		},
-	}
-	Instance(nil).
-    		RegisterTransformer(map[string]interface{}{
-    			"Location": func(storeId string) *Location {
-    				if location, ok := locationMapper[storeId]; ok {
-    					return location
-    				}
-    				return nil
-    			},
-    		}).
-    		RegisterResetDiffField([]DiffFieldPair{
-    			{Origin: "Name", Targets: []string{"TargetName", "Name"}},
-    			{Origin: "BirthDay", Targets: []string{"CreatedAt"}},
-    			{Origin: "StoreId", Targets: []string{"Location"}}},
-    		).Install(RFC3339Convertor).From(origins).CopyTo(&targets))
-    fmt.Printf("targets %+v\n", targets)
+cfg := meta.Config{
+    Type:   meta.ClientTypeR2,
+    Bucket: "my-bucket",
+    // ... other config
+}
 
-    // Output:
-    // targets &{ID:12345 Name:山田太郎 Age:32}
-    // [{Id: TargetName:MockModel1 Name:MockModel1 CreatedAt:2020-12-29T13:55:17.883+08:00 Location:0xc00000e660} {Id: TargetName:MockModel2 Name:MockModel2 CreatedAt:2020-12-29T13:55:17.883+08:00 Location:<nil>}]
+client, err := oss.NewClient(cfg)
+if err != nil {
+    log.Fatal(err)
 }
 ```
 
-</details>
-
-<details>
-
-<summary>Copy and set custom sublevel field</summary>
+### Kafka Client
 
 ```go
-type Age struct {
-	Value int
-}
-type OriginCityInfo struct {
-	Age  Age
-	Area float64
-}
-type TargetCityInfo struct {
-	Age  Age
-	Name string
-}
-type OriginLocation struct {
-	City     string
-	CityInfo OriginCityInfo
-}
-type originModel struct {
-	Name     string
-	Location OriginLocation
-}
-type TargetLocation struct {
-	City         string
-	CityName     string
-	CityNickName string
-	CityInfo     TargetCityInfo
-}
-type targetModel struct {
-	Name string
-	Loc  *TargetLocation
-}
-func TestCopyModelToProtoWithMultiLevelAndTransformer() {
-	var targets []targetModel
-	origins := []originModel{
-		{
-			Name: "MockModel",
-			Location: OriginLocation{
-				City: "ShangHai",
-				CityInfo: OriginCityInfo{
-					Age:  Age{Value: 1},
-					Area: 1,
-				},
-			},
-		},
-	}
-    Instance(nil).RegisterTransformer(map[string]interface{}{
-    		"Loc.CityNickName": func(city string) string {
-    			return "Transformer city nick name"
-    		},
-    		"Loc.CityInfo.Age": func(city Age) Age {
-    			city.Value++
-    			return city
-    		},
-    	}).RegisterResetDiffField([]DiffFieldPair{
-    		{Origin: "Location", Targets: []string{"Loc"}},
-    		{Origin: "Location.City", Targets: []string{"Loc.CityName", "Loc.CityNickName"}},
-    		{Origin: "Location.CityInfo.Age", Targets: []string{"Loc.CityInfo.Age"}},
-    	}).From(origins).CopyTo(&targets)
+import "github.com/alomerry/go-tools/components/kafka"
 
+client := kafka.NewKafkaClient(ctx,
+    kafka.WithAddresses("localhost:9092"),
+)
+
+topics, err := client.ListTopics()
+if err != nil {
+    log.Fatal(err)
 }
 ```
 
-</details>
+### System Monitor
 
-## go-pusher
+```go
+import "github.com/alomerry/go-tools/components/monitor"
 
-English | [简体中文](./pusher/README_ZH.md)
+monitor := monitor.NewSystemMonitor(
+    monitor.WithContext(ctx),
+    monitor.WithInterval(30*time.Second),
+    monitor.WithCallback(func(stats *monitor.SystemStats) error {
+        log.Printf("CPU: %.2f%%, Memory: %.2f%%", 
+            stats.CPUUsage, stats.MemoryUsage)
+        return nil
+    }),
+)
 
-go-pusher is a tool that can help you upload files to oss and backup file to vps regularly.
-
-### Features
-
-- [x] upload file to OSS if the file does not exist in OSS or the file in OSS is different from the local file
-- [ ] backup local file to VPS regularly
-
-### Usage
-
-`./pusher -configPath "Your config file abstract path"`
-
-### Config file
-
-<details>
-
-<summary>Config file template</summary>
-
-```toml
-modes = ["pusher", "syncer"]
-
-[syncer]
-# local directory abstract path
-local-path = "xxx"
-# remote directory abstract path
-remote-path = "xxx"
-# time to check file change(second)
-interval = 1
-
-[pusher]
-# oss provider( now support: qiniu)
-oss-provider = "qiniu"
-oss-object-prefix = "blog/public"
-push-timeout = 60
-local-directory = "/path/to/push"
-oss-delete-not-exists = false
-
-[oss-qiniu]
-bucket = "xxx"
-region = "ZoneHuadong"
-access-key = "xxx"
-sercet-key = "xxx"
+monitor.Watch()
 ```
 
-</details>
+### Database Dump
 
-## Thanks for free JetBrains Open Source license
+```go
+import "github.com/alomerry/go-tools/utils/db"
+import "github.com/alomerry/go-tools/static/cons"
+
+tool := db.NewDumpTool(
+    db.MySQLDumpCmdParam("user:pass@tcp(localhost:3306)/dbname"),
+    db.SetDumpPath("/tmp/backups"),
+)
+
+files, err := tool.DumpDbs(cons.Database{
+    Type: cons.MySQL,
+    Name: "mydb",
+})
+```
+
+### Set Operations
+
+```go
+import "github.com/alomerry/go-tools/utils/algorithm"
+
+set := algorithm.Instance[string]()
+set.Insert("a").Insert("b").Insert("c")
+
+if set.Has("a") {
+    fmt.Println("Set contains 'a'")
+}
+
+items := set.ToArray()
+```
+
+## License
+
+See [LICENSE](LICENSE) file for details.
+
+## Thanks
+
+Thanks for free JetBrains Open Source license
 
 <a href="https://www.jetbrains.com/?from=alomerry/go-tools" target="_blank">
 <img src="https://user-images.githubusercontent.com/1787798/69898077-4f4e3d00-138f-11ea-81f9-96fb7c49da89.png" height="100"/></a>
