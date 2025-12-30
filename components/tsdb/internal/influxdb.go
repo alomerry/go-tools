@@ -4,13 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/alomerry/go-tools/components/tsdb/def"
 	"github.com/alomerry/go-tools/static/errors/tsdb"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cast"
 )
+
+// single org influx db client
 
 type influxdbClient struct {
 	token     string
@@ -22,7 +27,7 @@ type influxdbClient struct {
 	asyncAPIs map[string]api.WriteAPI         // cache for async write APIs
 }
 
-func NewInfluxdbClient(ctx context.Context, org, endpoint, bucket, token string) (def.TsdbWriter, error) {
+func NewInfluxdbClient(ctx context.Context, org, endpoint, bucket, token string) (*influxdbClient, error) {
 	c := &influxdbClient{
 		writeAPIs: make(map[string]api.WriteAPIBlocking),
 		asyncAPIs: make(map[string]api.WriteAPI),
@@ -53,12 +58,16 @@ func (d *influxdbClient) validate() error {
 }
 
 func (d *influxdbClient) getWriteAPI(bucket string) api.WriteAPIBlocking {
-	if api, ok := d.writeAPIs[bucket]; ok {
-		return api
+	if wa, ok := d.writeAPIs[bucket]; ok {
+		return wa
 	}
-	api := d.client.WriteAPIBlocking(d.org, bucket)
-	d.writeAPIs[bucket] = api
-	return api
+	wa := d.client.WriteAPIBlocking(d.org, bucket)
+	d.writeAPIs[bucket] = wa
+	return wa
+}
+
+func (d *influxdbClient) getQueryAPI() api.QueryAPI {
+	return d.client.QueryAPI(d.org)
 }
 
 func (d *influxdbClient) LogPoint(ctx context.Context, bucket, measurement string, tags map[string]string, fields map[string]any) error {
@@ -147,4 +156,89 @@ func (d *influxdbClient) Close() error {
 		d.client.Close()
 	}
 	return nil
+}
+
+func (d *influxdbClient) Query(ctx context.Context, opts ...func(*def.TsdbQueryOptions)) ([]*def.Series, error) {
+	options := new(def.TsdbQueryOptions)
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	query, err := options.GetQuery()
+	if err != nil {
+		return nil, err
+	}
+
+	results, err := d.getQueryAPI().Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		series = make(map[string]*def.Series)
+		res    []*def.Series
+	)
+
+	for results.Next() {
+		record := results.Record()
+
+		keys := make([]string, 0, len(options.Groups)*len(options.Fields))
+		for _, group := range options.Groups {
+			keys = append(keys, cast.ToString(record.Values()[group]))
+		}
+
+		field := record.Field()
+		if len(record.Field()) == 0 {
+			field = "deafult_count"
+		}
+
+		keys = append(keys, field)
+		key := strings.Join(keys, "-")
+		if _, ok := series[key]; !ok {
+			series[key] = &def.Series{
+				Name:    key,
+				Tags:    make(map[string]string),
+				Columns: append([]string{"time", field}),
+			}
+
+			for i, group := range options.Groups {
+				series[key].Tags[group] = keys[i]
+			}
+		}
+
+		var item = []any{
+			record.Time().Unix(),
+			record.Values()["_value"],
+		}
+
+		series[key].Values = append(series[key].Values, item)
+		// fmt.Println(record)
+	}
+	if err = results.Err(); err != nil {
+		return nil, err
+	}
+
+	res = make([]*def.Series, 0, len(series))
+	for k := range series {
+		res = append(res, series[k])
+	}
+
+	return res, nil
+}
+
+func (d *influxdbClient) readBy(ctx context.Context, bucket string) {
+	queryAPI := d.getQueryAPI()
+	query := `from(bucket: "my-bucket")
+            |> range(start: -10m)
+            |> filter(fn: (r) => r._measurement == "measurement1")`
+	results, err := queryAPI.Query(context.Background(), query)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	for results.Next() {
+		fmt.Println(results.Record())
+	}
+	if err := results.Err(); err != nil {
+		logrus.Fatal(err)
+	}
 }
