@@ -14,6 +14,8 @@ const (
 
 var (
 	EmptyTime = time.Unix(0, 0)
+
+	DefaultTimeZone, _ = time.LoadLocation("Asia/Shanghai")
 )
 
 func ConvString2Time(dateString string) time.Time {
