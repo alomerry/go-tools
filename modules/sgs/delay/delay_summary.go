@@ -41,7 +41,7 @@ func DoDelaySummaryMulti(path string) {
 	slims.modifyReportAndSheet3()
 	slims.modifyReport()
 	//genNewResult(slims.report)
-	log.Default().Printf("date [%s] done.\n")
+	log.Default().Printf("date done.\n")
 }
 
 func genNewResult(sheet *xlsx.Sheet) {

@@ -40,5 +40,7 @@ const (
 
 	MongoDSN = "MONGO_DSN"
 
+	KookToken = "KOOK_TOKEN"
+
 	Service = "SERVICE"
 )

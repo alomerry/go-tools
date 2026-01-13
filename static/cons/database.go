@@ -66,5 +66,4 @@ func ParseDbDsn(dsn string) (*BaseDbInfo, error) {
 	default:
 		return nil, errors.New(DsnInvalidNoSuitableResolver)
 	}
-	return nil, nil
 }
