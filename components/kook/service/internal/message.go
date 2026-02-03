@@ -3,8 +3,8 @@ package internal
 import (
 	"context"
 	"encoding/json"
-	"net/http"
 
+	"github.com/alomerry/go-tools/components/http/opts/req"
 	"github.com/alomerry/go-tools/components/kook/model"
 	"github.com/alomerry/go-tools/static/cons/kook"
 )
@@ -14,16 +14,19 @@ type MessageService struct {
 }
 
 func (m *MessageService) Create(ctx context.Context, param model.CreateMessageRequest) (*model.CreateMessageResp, error) {
-	req := m.getRequest(ctx)
 	body, err := json.Marshal(param)
 	if err != nil {
 		return nil, err
 	}
 
-	req.SetBody(body)
-
 	var result model.CreateMessageResp
-	_, err = m.execute(req, http.MethodPost, kook.MessageCreate, &result)
+
+	res, err := m.client.Post(ctx, kook.MessageCreate, req.WithBody(body))
+	if err != nil {
+		return nil, err
+	}
+
+	err = m.after(res, &result)
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"container/heap"
+
 	"github.com/golang/groupcache/lru"
 )
 
@@ -64,7 +65,7 @@ func (l *lruCache[T]) init() {
 		for {
 			select {
 			case <-tick.C:
-				l.innerLru.Get()
+				l.innerLru.RemoveOldest()
 			}
 		}
 	}()

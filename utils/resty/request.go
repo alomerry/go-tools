@@ -3,8 +3,8 @@ package resty
 import (
 	"time"
 
+	"github.com/alomerry/cat-go/cat"
 	"github.com/alomerry/go-tools/static/cons"
-	"github.com/alomerry/go-tools/utils/trace"
 	"resty.dev/v3"
 )
 
@@ -24,8 +24,22 @@ func DefaultRequestMiddleware(client *resty.Client, req *resty.Request) error {
 		}
 	}
 
-	// 设置请求 ID 用于跟踪
-	req.SetHeader(cons.TraceIdKey, trace.NewTraceId())
+	_, ctx := cat.NewTransactionWithCtx(req.Context(), "URL", req.URL)
+	req.SetContext(ctx)
 
+	return nil
+}
+
+func DefaultResponseMiddleware(client *resty.Client, resp *resty.Response) error {
+	ctx := resp.Request.Context()
+
+	if resp.StatusCode() >= 400 {
+		cat.SetStatus(ctx, cat.ERROR)
+		cat.AddData(ctx, "status", resp.Status())
+	} else {
+		cat.SetStatus(ctx, cat.SUCCESS)
+	}
+
+	cat.CompleteTransaction(ctx)
 	return nil
 }

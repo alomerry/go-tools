@@ -1,0 +1,89 @@
+package http
+
+import (
+	"context"
+	"sync"
+
+	"github.com/alomerry/go-tools/components/http/opts/req"
+	"github.com/alomerry/go-tools/components/http/opts/setup"
+	resty2 "github.com/alomerry/go-tools/utils/resty"
+	"resty.dev/v3"
+)
+
+var (
+	once     = sync.Once{}
+	instance = &restyClient{}
+)
+
+type Client interface {
+	Post(ctx context.Context, url string, opts ...req.Opt) (Response, error)
+	Get(ctx context.Context, url string, opts ...req.Opt) (Response, error)
+	Close(ctx context.Context) error
+}
+
+type Response interface {
+	String() string
+	Bytes() []byte
+	Status() string
+	StatusCode() int
+}
+
+type restyClient struct {
+	client *resty.Client
+}
+
+type restyResponse struct {
+	*resty.Response
+}
+
+func NewHttpClient(opts ...setup.Opt) Client {
+	rc := resty.New()
+	rc.AddRetryConditions(resty2.DefaultRetryCondition)
+
+	rc.AddRequestMiddleware(resty2.DefaultRequestMiddleware)
+	rc.AddResponseMiddleware(resty2.DefaultResponseMiddleware)
+
+	for _, opt := range opts {
+		opt(rc)
+	}
+
+	return &restyClient{
+		client: rc,
+	}
+}
+
+func GetClient() Client {
+	once.Do(func() {
+		instance = NewHttpClient().(*restyClient)
+	})
+
+	return instance
+}
+
+func (r *restyClient) Post(ctx context.Context, url string, opts ...req.Opt) (Response, error) {
+	request := r.client.R()
+	request.SetContext(ctx)
+
+	for _, opt := range opts {
+		opt(request)
+	}
+
+	result, err := request.Post(url)
+	return &restyResponse{result}, err
+}
+
+func (r *restyClient) Get(ctx context.Context, url string, opts ...req.Opt) (Response, error) {
+	request := r.client.R()
+	request.SetContext(ctx)
+
+	for _, opt := range opts {
+		opt(request)
+	}
+
+	result, err := request.Get(url)
+	return &restyResponse{result}, err
+}
+
+func (r *restyClient) Close(ctx context.Context) error {
+	return r.client.Close()
+}

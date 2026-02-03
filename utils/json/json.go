@@ -3,7 +3,7 @@ package json
 import (
 	"fmt"
 
-	sonic "github.com/bytedance/sonic"
+	"github.com/bytedance/sonic"
 )
 
 func Marshal(v any) string {
