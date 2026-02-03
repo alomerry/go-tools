@@ -198,7 +198,7 @@ func (d *influxdbClient) Query(ctx context.Context, opts ...func(*def.TsdbQueryO
 			series[key] = &def.Series{
 				Name:    key,
 				Tags:    make(map[string]string),
-				Columns: append([]string{"time", field}),
+				Columns: []string{"time", field},
 			}
 
 			for i, group := range options.Groups {

@@ -3,15 +3,16 @@ package client
 import (
 	"time"
 
+	"github.com/alomerry/go-tools/components/http"
+	"github.com/alomerry/go-tools/components/http/opts/setup"
 	"github.com/alomerry/go-tools/components/kook/service"
-	resty2 "github.com/alomerry/go-tools/utils/resty"
-	"resty.dev/v3"
+	"github.com/emicklei/go-restful/v3"
 )
 
 // Client 主客户端结构
 type Client struct {
-	restyClient *resty.Client
-	baseURL     string
+	httpCli http.Client
+	baseURL string
 
 	// 服务实例
 	ChannelService service.ChannelService
@@ -51,14 +52,10 @@ func NewClient(opts ...Option) *Client {
 		opt(config)
 	}
 
-	// 创建 resty 客户端
-	restyClient := resty.New()
-
 	// 配置 resty 客户端
 	c := &Client{
-		restyClient: restyClient,
-		baseURL:     config.BaseURL,
-		config:      config,
+		baseURL: config.BaseURL,
+		config:  config,
 	}
 
 	c.setupRestyClient()
@@ -69,36 +66,29 @@ func NewClient(opts ...Option) *Client {
 
 // setupRestyClient 配置 resty 客户端
 func (c *Client) setupRestyClient() {
-	rc := c.restyClient
+	var opts []setup.Opt
 
-	// 基础配置
-	rc.SetBaseURL(c.baseURL)
-	rc.SetTimeout(c.config.Timeout)
-	rc.SetRetryCount(c.config.RetryCount)
-
-	// 设置默认 Headers
-	rc.SetHeader("Accept", "application/json")
+	opts = append(
+		opts,
+		setup.Debug(c.config.Debug),
+		setup.WithAccept(restful.MIME_JSON),
+		setup.WithResponseMiddleware(c.processResponse),
+		setup.WithBaseURL(c.baseURL),
+		setup.WithContentType(restful.MIME_JSON),
+		setup.WithTimeout(c.config.Timeout),
+		setup.WithRetryCount(c.config.RetryCount),
+	)
 
 	// 认证头
 	if c.config.AccessToken != "" {
-		rc.SetAuthScheme("Bot")
-		rc.SetAuthToken(c.config.AccessToken)
-		// rc.SetHeader("Authorization", fmt.Sprintf("Bot %s", c.config.AccessToken))
+		opts = append(opts, setup.WithAuthSchema("Bot"), setup.WithAuthToken(c.config.AccessToken))
 	}
 
-	// 调试模式
-	rc.SetDebug(c.config.Debug)
-
-	// 设置中间件
-	rc.AddRequestMiddleware(resty2.DefaultRequestMiddleware)
-	rc.AddResponseMiddleware(c.processResponse)
-
-	// 配置重试
-	rc.AddRetryConditions(resty2.DefaultRetryCondition)
+	c.httpCli = http.NewHttpClient(opts...)
 }
 
 // initServices 初始化服务
 func (c *Client) initServices() {
-	c.ChannelService = service.NewChannelService(c.restyClient)
-	c.MessageService = service.NewMessageService(c.restyClient)
+	c.ChannelService = service.NewChannelService(c.httpCli)
+	c.MessageService = service.NewMessageService(c.httpCli)
 }
