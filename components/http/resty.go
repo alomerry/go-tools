@@ -7,7 +7,7 @@ import (
 	"github.com/alomerry/go-tools/components/http/opts/req"
 	"github.com/alomerry/go-tools/components/http/opts/setup"
 	resty2 "github.com/alomerry/go-tools/utils/resty"
-	"resty.dev/v3"
+	"github.com/go-resty/resty/v2"
 )
 
 var (
@@ -36,12 +36,16 @@ type restyResponse struct {
 	*resty.Response
 }
 
+func (r *restyResponse) Bytes() []byte {
+	return r.Body()
+}
+
 func NewHttpClient(opts ...setup.Opt) Client {
 	rc := resty.New()
-	rc.AddRetryConditions(resty2.DefaultRetryCondition)
+	rc.AddRetryCondition(resty2.DefaultRetryCondition)
 
-	rc.AddRequestMiddleware(resty2.DefaultRequestMiddleware)
-	rc.AddResponseMiddleware(resty2.DefaultResponseMiddleware)
+	rc.OnBeforeRequest(resty2.DefaultRequestMiddleware)
+	rc.OnAfterResponse(resty2.DefaultResponseMiddleware)
 
 	for _, opt := range opts {
 		opt(rc)
@@ -85,5 +89,5 @@ func (r *restyClient) Get(ctx context.Context, url string, opts ...req.Opt) (Res
 }
 
 func (r *restyClient) Close(ctx context.Context) error {
-	return r.client.Close()
+	return nil
 }

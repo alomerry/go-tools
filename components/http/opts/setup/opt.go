@@ -3,7 +3,7 @@ package setup
 import (
 	"time"
 
-	"resty.dev/v3"
+	"github.com/go-resty/resty/v2"
 )
 
 type Opt func(*resty.Client)
@@ -20,9 +20,9 @@ func WithAuthToken(authToken string) Opt {
 	}
 }
 
-func WithRequestMiddleware(middleware resty.RequestMiddleware) Opt {
+func WithRequestMiddleware(middleware func(*resty.Client, *resty.Request) error) Opt {
 	return func(rc *resty.Client) {
-		rc.AddRequestMiddleware(middleware)
+		rc.OnBeforeRequest(middleware)
 	}
 }
 
@@ -38,9 +38,9 @@ func WithAccept(accept string) Opt {
 	}
 }
 
-func WithResponseMiddleware(middleware resty.ResponseMiddleware) Opt {
+func WithResponseMiddleware(middleware func(*resty.Client, *resty.Response) error) Opt {
 	return func(rc *resty.Client) {
-		rc.AddResponseMiddleware(middleware)
+		rc.OnAfterResponse(middleware)
 	}
 }
 

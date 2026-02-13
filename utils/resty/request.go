@@ -5,7 +5,7 @@ import (
 
 	"github.com/alomerry/cat-go/cat"
 	"github.com/alomerry/go-tools/static/cons"
-	"resty.dev/v3"
+	"github.com/go-resty/resty/v2"
 )
 
 func DefaultRequestMiddleware(client *resty.Client, req *resty.Request) error {

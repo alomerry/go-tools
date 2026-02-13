@@ -1,6 +1,6 @@
 package req
 
-import "resty.dev/v3"
+import "github.com/go-resty/resty/v2"
 
 type Opt func(*resty.Request)
 

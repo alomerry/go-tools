@@ -1,7 +1,7 @@
 package client
 
 import (
-	"resty.dev/v3"
+	"github.com/go-resty/resty/v2"
 )
 
 // processResponse 响应后处理
