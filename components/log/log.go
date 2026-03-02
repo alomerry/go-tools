@@ -14,6 +14,10 @@ func WithField(key string, value interface{}) Logger {
 	return Logger{logrus.WithField(key, value)}
 }
 
+func WithFields(fields logrus.Fields) Logger {
+  return Logger{logrus.WithFields(fields)}
+}
+
 func (l Logger) Info(ctx context.Context, args ...any) {
 	l.WithContext(ctx).Info(args...)
 }

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alomerry/go-tools/model/monitor"
 	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/sirupsen/logrus"
@@ -23,7 +24,7 @@ type SystemMonitor interface {
 type option struct {
 	ctx      context.Context
 	interval time.Duration
-	callback func(stats *SystemStats) error
+	callback func(stats *monitor.SystemStats) error
 }
 
 func WithContext(ctx context.Context) func(o *option) {
@@ -38,7 +39,7 @@ func WithInterval(interval time.Duration) func(o *option) {
 	}
 }
 
-func WithCallback(callback func(stats *SystemStats) error) func(o *option) {
+func WithCallback(callback func(stats *monitor.SystemStats) error) func(o *option) {
 	return func(o *option) {
 		o.callback = callback
 	}
@@ -97,26 +98,9 @@ func (s *systemMonitor) run() {
 	}
 }
 
-type SystemStats struct {
-	Timestamp time.Time
-
-	PhysicalCPU int
-	LogicalCPU  int
-	CPUUsage    float64
-
-	TotalMemory uint64
-	UsedMemory  uint64
-	MemoryUsage float64
-
-	DiskUsage map[string]float64
-	LoadAvg   [3]float64
-
-	Ip string
-}
-
-func CollectStats() (*SystemStats, error) {
+func CollectStats() (*monitor.SystemStats, error) {
 	var (
-		stats = &SystemStats{
+		stats = &monitor.SystemStats{
 			Timestamp: time.Now(),
 			DiskUsage: make(map[string]float64),
 		}
