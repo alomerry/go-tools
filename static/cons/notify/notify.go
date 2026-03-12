@@ -29,6 +29,13 @@ var (
     NotifyTypeAlarm,
     NotifyTypeSystem,
   }
+  
+  senderTypes = []NotifySenderType{
+    NotifySenderKook,
+    NotifySenderBark,
+    NotifySenderConsole,
+  }
+  
   groups = []NotifyGroup{
     NotifyGroupAlarm,
     NotifyGroupAlert,
@@ -46,6 +53,16 @@ func ToNotifyType(str string) NotifyType {
   for i := range types {
     if string(types[i]) == str {
       return types[i]
+    }
+  }
+  
+  return ""
+}
+
+func ToNotifySenderType(str string) NotifySenderType {
+  for i := range senderTypes {
+    if string(senderTypes[i]) == str {
+      return senderTypes[i]
     }
   }
   
