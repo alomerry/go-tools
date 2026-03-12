@@ -2,7 +2,8 @@ package apollo
 
 import (
 	"encoding/json"
-	"log"
+  "fmt"
+  "log"
 	"reflect"
 	"strings"
 	"sync"
@@ -15,12 +16,17 @@ import (
 
 var (
 	initOnce = sync.Once{}
-
-	client   agollo.Client
+  
+  client apolloClient
 	listener *apolloListener
 )
 
-func Init(appId string) {
+type apolloClient struct {
+  agollo.Client
+  clientId string
+}
+
+func Init(appId, clientId string) {
 	initOnce.Do(func() {
 		c := &config.AppConfig{
 			AppID:          appId,
@@ -31,15 +37,15 @@ func Init(appId string) {
 			NamespaceName:  env.ApolloNamespace(),
 			Secret:         env.ApolloSK(),
 		}
-		var err error
-
-		client, err = agollo.StartWithConfig(func() (*config.AppConfig, error) {
+    
+    cli, err := agollo.StartWithConfig(func() (*config.AppConfig, error) {
 			return c, nil
 		})
 
 		if err != nil {
 			log.Panicf("init apollo failed, err: %v", err)
 		}
+    client = apolloClient{cli, clientId}
 
 		listener = newApolloListener()
 		client.AddChangeListener(listener)
@@ -54,7 +60,7 @@ func Get(name string) (any, error) {
 
 func GetJson[T any](name string, dist *T) error {
 	cache := client.GetConfigCache(env.ApolloNamespace())
-	value, err := cache.Get(strings.TrimSuffix(name, ",dynamic"))
+  value, err := cache.Get(strings.TrimSuffix(fmt.Sprintf("%s.%s", client.clientId, name), ",dynamic"))
 	if err != nil {
 		return err
 	}
@@ -63,7 +69,7 @@ func GetJson[T any](name string, dist *T) error {
 	case string:
 		err = json.Unmarshal([]byte(value.(string)), dist)
 	default:
-		log.Panicf("unsupport type %v", reflect.TypeOf(value))
+    log.Panicf("unsupported type %v", reflect.TypeOf(value))
 	}
 
 	if err != nil {

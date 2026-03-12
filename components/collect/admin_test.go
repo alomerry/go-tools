@@ -23,6 +23,6 @@ func TestAgentAdmin(t *testing.T) {
 	assert.NoError(t, err)
   defer admin.Close(ctx)
   
-  err = admin.RegisterAgent(ctx)
+  _, err = admin.RegisterAgent(ctx)
   assert.NoError(t, err)
 }

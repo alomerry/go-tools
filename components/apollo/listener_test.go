@@ -11,7 +11,7 @@ import (
 )
 
 func TestListener(t *testing.T) {
-	Init("colona")
+  Init("colona", "colona")
 
 	var (
 		val value
