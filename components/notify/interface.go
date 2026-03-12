@@ -6,6 +6,7 @@ package notify
 
 import (
 	"context"
+  "fmt"
 )
 
 // Message 定义了通知消息的结构
@@ -39,7 +40,11 @@ func (n NotifierWrapper) Close() error {
 }
 
 func (n NotifierWrapper) Send(ctx context.Context, opts ...Option) error {
-	msg := &Message{}
+  if n.notifier == nil {
+    return fmt.Errorf("notifier instance not found")
+  }
+  
+  msg := &Message{}
 	for _, opt := range opts {
 		opt.apply(msg)
 	}

@@ -2,9 +2,10 @@ package notify
 
 import (
 	"context"
-	"fmt"
+  "fmt"
 	"sync"
   
+  "github.com/alomerry/cat-go/cat"
   "github.com/alomerry/go-tools/static/cons/notify"
 )
 
@@ -68,12 +69,13 @@ func (m *Manager) InitDrivers() error {
 	return nil
 }
 
-func (m *Manager) WithNotifier(senderType notify.NotifySenderType) NotifierWrapper {
+func (m *Manager) WithNotifier(ctx context.Context, senderType notify.NotifySenderType) NotifierWrapper {
 	m.mu.RLock()
 	n, ok := m.notifiers[senderType]
 	m.mu.RUnlock()
 	if !ok {
-		//return fmt.Errorf("notifier instance %s not found", name)
+    cat.LogError(ctx, fmt.Errorf("%s notifier not found", senderType))
+    return NotifierWrapper{}
 	}
 
 	return n
