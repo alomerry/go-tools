@@ -29,15 +29,15 @@ type PublishOptions struct {
 	ReleasedBy     string `json:"releasedBy"`
 }
 
-func (s *ReleasesService) Publish(ctx context.Context, env, appID, clusterName, namespaceName string, opts *PublishOptions) (*Release, error) {
-	path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s/releases", env, appID, clusterName, namespaceName)
+func (s *ReleasesService) Publish(ctx context.Context, info FullQuery, opts *PublishOptions) (*Release, error) {
+  path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s/releases", info.GetEnv(), info.GetAppId(), info.GetCluster(), info.GetNamespace())
 	var result Release
 	_, err := s.client.Do(ctx, http.MethodPost, path, opts, &result)
 	return &result, err
 }
 
-func (s *ReleasesService) GetLatest(ctx context.Context, env, appID, clusterName, namespaceName string) (*Release, error) {
-	path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s/releases/latest", env, appID, clusterName, namespaceName)
+func (s *ReleasesService) GetLatest(ctx context.Context, info FullQuery) (*Release, error) {
+  path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s/releases/latest", info.GetEnv(), info.GetAppId(), info.GetCluster(), info.GetNamespace())
 	var result Release
 	_, err := s.client.Do(ctx, http.MethodGet, path, nil, &result)
 	return &result, err

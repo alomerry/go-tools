@@ -1,8 +1,10 @@
 package env
 
 import (
-	"github.com/alomerry/go-tools/static/cons"
-	"os"
+  "os"
+  
+  "github.com/alomerry/go-tools/static/cons"
+  "github.com/alomerry/go-tools/static/cons/apollo"
 )
 
 func ApolloHost() string {
@@ -20,7 +22,7 @@ func ApolloSK() string {
 func ApolloNamespace() string {
 	namespace := os.Getenv(cons.ApolloNamespace)
 	if namespace == "" {
-		namespace = "application"
+    namespace = apollo.DefaultApplication
 	}
 	return namespace
 }
@@ -28,7 +30,19 @@ func ApolloNamespace() string {
 func ApolloCluster() string {
 	cluster := os.Getenv(cons.ApolloCluster)
 	if cluster == "" {
-		cluster = "default"
+    cluster = apollo.DefaultCluster
 	}
 	return cluster
+}
+
+func ApolloEnv() string {
+  env := os.Getenv(cons.ApolloEnv)
+  if env == "" {
+    env = apollo.DefaultEnv
+  }
+  return env
+}
+
+func ApolloOpenapiToken() string {
+  return os.Getenv(cons.ApolloOpenapiToken)
 }

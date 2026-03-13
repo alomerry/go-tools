@@ -30,29 +30,29 @@ type NamespaceLock struct {
 	LockedBy      string `json:"lockedBy"`
 }
 
-func (s *NamespacesService) GetAll(ctx context.Context, env, appID, clusterName string) ([]*Namespace, error) {
-	path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces", env, appID, clusterName)
+func (s *NamespacesService) GetAll(ctx context.Context, info NamespaceQuery) ([]*Namespace, error) {
+  path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces", info.GetEnv(), info.GetAppId(), info.GetCluster())
 	var result []*Namespace
 	_, err := s.client.Do(ctx, http.MethodGet, path, nil, &result)
 	return result, err
 }
 
-func (s *NamespacesService) Get(ctx context.Context, env, appID, clusterName, namespaceName string) (*Namespace, error) {
-	path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s", env, appID, clusterName, namespaceName)
+func (s *NamespacesService) Get(ctx context.Context, info FullQuery) (*Namespace, error) {
+  path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s", info.GetEnv(), info.GetAppId(), info.GetCluster(), info.GetNamespace())
 	var result Namespace
 	_, err := s.client.Do(ctx, http.MethodGet, path, nil, &result)
 	return &result, err
 }
 
-func (s *NamespacesService) Create(ctx context.Context, env, appID, clusterName string, namespace *Namespace) (*Namespace, error) {
-	path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces", env, appID, clusterName)
+func (s *NamespacesService) Create(ctx context.Context, info NamespaceQuery, namespace *Namespace) (*Namespace, error) {
+  path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces", info.GetEnv(), info.GetAppId(), info.GetCluster())
 	var result Namespace
 	_, err := s.client.Do(ctx, http.MethodPost, path, namespace, &result)
 	return &result, err
 }
 
-func (s *NamespacesService) GetLock(ctx context.Context, env, appID, clusterName, namespaceName string) (*NamespaceLock, error) {
-	path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s/lock", env, appID, clusterName, namespaceName)
+func (s *NamespacesService) GetLock(ctx context.Context, info FullQuery) (*NamespaceLock, error) {
+  path := fmt.Sprintf("/openapi/v1/envs/%s/apps/%s/clusters/%s/namespaces/%s/lock", info.GetEnv(), info.GetAppId(), info.GetCluster(), info.GetNamespace())
 	var result NamespaceLock
 	_, err := s.client.Do(ctx, http.MethodGet, path, nil, &result)
 	return &result, err
