@@ -11,8 +11,9 @@ type ItemsService struct {
 }
 
 type Item struct {
-	Key                        string `json:"key"`
-	Value                      string `json:"value"`
+  Key   string `json:"key"`
+  Type  int    `json:"type"`
+  Value string `json:"value"`
 	Comment                    string `json:"comment"`
 	DataChangeCreatedBy        string `json:"dataChangeCreatedBy"`
 	DataChangeLastModifiedBy   string `json:"dataChangeLastModifiedBy"`
