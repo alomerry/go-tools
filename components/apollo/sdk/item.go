@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+  
+  "github.com/alomerry/go-tools/static/cons/apollo"
 )
 
 type ItemsService struct {
@@ -11,14 +13,14 @@ type ItemsService struct {
 }
 
 type Item struct {
-  Key   string `json:"key"`
-  Type  int    `json:"type"`
-  Value string `json:"value"`
-	Comment                    string `json:"comment"`
-	DataChangeCreatedBy        string `json:"dataChangeCreatedBy"`
-	DataChangeLastModifiedBy   string `json:"dataChangeLastModifiedBy"`
-	DataChangeCreatedTime      string `json:"dataChangeCreatedTime"`
-	DataChangeLastModifiedTime string `json:"dataChangeLastModifiedTime"`
+  Key                        string         `json:"key"`
+  Type                       apollo.KeyType `json:"type"`
+  Value                      string         `json:"value"`
+  Comment                    string         `json:"comment"`
+  DataChangeCreatedBy        string         `json:"dataChangeCreatedBy"`
+  DataChangeLastModifiedBy   string         `json:"dataChangeLastModifiedBy"`
+  DataChangeCreatedTime      string         `json:"dataChangeCreatedTime,omitempty"`
+  DataChangeLastModifiedTime string         `json:"dataChangeLastModifiedTime,omitempty"`
 }
 
 type PageDTO struct {
