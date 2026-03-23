@@ -24,9 +24,10 @@ type TsdbQueryOptions struct {
 
 	tags map[tagOpKey][]string
 
-	Start *time.Time
-	End   *time.Time
-	Query *string
+	Start    *time.Time
+	End      *time.Time
+	Query    *string
+	Interval string
 }
 
 func (t *TsdbQueryOptions) Apply(opts ...func(*TsdbQueryOptions)) {
@@ -52,7 +53,7 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 %s
 %s
 %s
-|> aggregateWindow(every: 5s, fn: mean)
+|> aggregateWindow(every: %s, fn: mean)
 `,
 		t.Bucket,
 		start, end,
@@ -60,6 +61,7 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 		t.getTags(),
 		t.getFields(),
 		t.getGroup(),
+		t.getInterval(),
 	)
 
 	if env.Local() {
@@ -98,6 +100,26 @@ func (t *TsdbQueryOptions) getTimeRange() (string, string) {
 	}
 
 	return start, end
+}
+
+func (t *TsdbQueryOptions) getInterval() string {
+	if t.Interval != "" {
+		return t.Interval
+	}
+	
+	if t.Start != nil && t.End != nil {
+		duration := t.End.Sub(*t.Start)
+		switch {
+		case duration >= 24*time.Hour:
+			return "30m"
+		case duration >= 6*time.Hour:
+			return "5m"
+		case duration >= 1*time.Hour:
+			return "1m"
+		}
+	}
+	
+	return "5s"
 }
 
 func (t *TsdbQueryOptions) getTags() string {
@@ -208,6 +230,12 @@ func WithQuery(query string) func(*TsdbQueryOptions) {
 		if len(query) > 0 {
 			opts.Query = &query
 		}
+	}
+}
+
+func WithInterval(interval string) func(*TsdbQueryOptions) {
+	return func(opts *TsdbQueryOptions) {
+		opts.Interval = interval
 	}
 }
 
