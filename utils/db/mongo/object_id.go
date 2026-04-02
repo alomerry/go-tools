@@ -1,21 +1,21 @@
 package mongo
 
 import (
-	"log"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
+  "log"
+  
+  "go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func NewObjectIdHex() string {
-	return primitive.NewObjectID().Hex()
+  return bson.NewObjectID().Hex()
 }
 
-func NewObjectId() primitive.ObjectID {
-	return primitive.NewObjectID()
+func NewObjectId() bson.ObjectID {
+  return bson.NewObjectID()
 }
 
-func MustToObjectId(id string) primitive.ObjectID {
-	oid, err := primitive.ObjectIDFromHex(id)
+func MustToObjectId(id string) bson.ObjectID {
+  oid, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		log.Panicf("invalid objectId [%v]", id)
 	}

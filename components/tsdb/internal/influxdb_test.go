@@ -1,14 +1,15 @@
 package internal
 
 import (
-	"context"
-	"os"
-	"testing"
-	"time"
-
-	"github.com/alomerry/go-tools/components/tsdb/def"
-	"github.com/alomerry/go-tools/static/cons/tsdb"
-	"github.com/stretchr/testify/assert"
+  "context"
+  "os"
+  "testing"
+  "time"
+  
+  "github.com/alomerry/go-tools/components/tsdb/def"
+  "github.com/alomerry/go-tools/static/cons/tsdb"
+  "github.com/spf13/cast"
+  "github.com/stretchr/testify/assert"
 )
 
 func TestReadMetric(t *testing.T) {
@@ -21,17 +22,27 @@ func TestReadMetric(t *testing.T) {
 
 	assert.NoError(t, err)
 	defer client.Close()
-
-	options := append([]func(*def.TsdbQueryOptions){},
+  
+  timeZone, _ := time.LoadLocation("Asia/Shanghai")
+  startTime, err := cast.StringToDateInDefaultLocation("2026-03-23T08:13:45.000Z", timeZone)
+  assert.NoError(t, err)
+  
+  endTime, err := cast.StringToDateInDefaultLocation("2026-03-23T08:16:45.000Z", timeZone)
+  assert.NoError(t, err)
+  
+  options := append([]func(*def.TsdbQueryOptions){},
 		def.WithBucket("homelab"),
 		def.WithMeasurement("cpu.usage"),
 		def.WithFields("usage", "cnt"),
 		def.WithGroup("service"),
+    def.WithStart(startTime),
+    def.WithEnd(endTime),
 		def.WithTag("service", tsdb.OpEqual, "homelab-backend-account"),
 	)
-
-	client.Query(ctx, options...)
-
+  
+  res, err := client.Query(ctx, options...)
+  assert.NoError(t, err)
+  assert.NotNil(t, res)
 }
 
 func TestDefault_LogPoint(t *testing.T) {
