@@ -30,6 +30,19 @@ go_test() {
     set -ex
 }
 
+go_vet() {
+  local vet_path="${1:-./...}"
+  echo "Running vet for: $vet_path"
+  go vet "$vet_path" -timeout 60s
+}
+
+custom_vet() {
+  go build -o custom_checker analysis/cmd/main.go
+  local vet_path="${1:-./...}"
+  echo "Running custom vet for: $vet_path"
+  ./custom_checker "$vet_path"
+}
+
 main() {
   case "$1" in
     agent_demo)
@@ -38,6 +51,11 @@ main() {
     test)
       shift
       go_test $@
+      ;;
+    vet)
+      shift
+#      go_vet $@
+      custom_vet $@
       ;;
     *)
       echo "done!"

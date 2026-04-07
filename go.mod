@@ -39,6 +39,7 @@ require (
 	github.com/uptrace/bun/dialect/mysqldialect v1.2.18
 	go.mongodb.org/mongo-driver/v2 v2.5.0
 	golang.org/x/crypto v0.49.0
+	golang.org/x/tools v0.43.0
 	google.golang.org/grpc v1.79.3
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3

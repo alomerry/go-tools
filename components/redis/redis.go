@@ -17,6 +17,21 @@ func NewRedisClient(url string) *redis.Client {
 	return redis.NewClient(opt)
 }
 
-func GenRedisKey(category string, args ...string) string {
+var (
+  redisKeyGenerator = &keyGenerator{}
+)
+
+func KeyGen() Generator {
+  return redisKeyGenerator
+}
+
+type Generator interface {
+  GenKey(category string, args ...string) string
+}
+
+type keyGenerator struct {
+}
+
+func (*keyGenerator) GenKey(category string, args ...string) string {
 	return category + ":" + strings.Join(args, ":")
 }

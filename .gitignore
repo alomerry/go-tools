@@ -35,5 +35,8 @@ Thumbs.db
 /bin/
 /pprof/
 /vendor
+tmp
+testdata
+custom_checker
 coverage.out
 coverage.html
