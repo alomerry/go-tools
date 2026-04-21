@@ -252,7 +252,7 @@ func collectDocker(ctx context.Context) ([]*monitor.SystemStats, error) {
 		{
 			res, err := docker.CgroupMemDockerWithContext(ctx, container.ContainerID)
 			if err != nil {
-				log.Errorf(ctx, "收集 docker cpu 失败 %v", err)
+        log.Errorf(ctx, "收集 docker mem 失败 %v", err)
 				continue
 			}
 
