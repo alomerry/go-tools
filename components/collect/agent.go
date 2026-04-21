@@ -208,7 +208,7 @@ func (a *Agent) collectAndReport() {
   
   log.WithFields(logrus.Fields{
     "duration": time.Since(startTime),
-    "cpu":      stats.CPUUsage,
+    "cpu":      stats.CpuUsage,
     "memory":   stats.MemoryUsage,
     "disk":     stats.DiskUsage,
   }).Infof(a.ctx, "Data collection and reporting completed")

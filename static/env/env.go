@@ -101,7 +101,7 @@ func GetRedisAK(defaultVal ...string) string {
 
 func GetMysqlAdminDSN(defaultVal ...string) string {
 	if Local() {
-		return os.Getenv(cons.LOCAL_MYSQL_ADMIN_DSN)
+    return os.Getenv(cons.MYSQL_ADMIN_DSN)
 	}
 
 	if len(defaultVal) > 0 && len(defaultVal[0]) > 0 {

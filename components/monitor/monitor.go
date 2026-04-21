@@ -6,7 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/alomerry/go-tools/components/log"
 	"github.com/alomerry/go-tools/model/monitor"
+	"github.com/alomerry/go-tools/utils/trace"
 	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/sirupsen/logrus"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/docker"
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
@@ -21,9 +24,17 @@ type SystemMonitor interface {
 	Watch()
 }
 
+type SystemMonitorCategory string
+
+const (
+	SystemMonitorCategoryHost   SystemMonitorCategory = "host"
+	SystemMonitorCategoryDocker SystemMonitorCategory = "docker"
+)
+
 type option struct {
 	ctx      context.Context
 	interval time.Duration
+	category SystemMonitorCategory
 	callback func(stats *monitor.SystemStats) error
 }
 
@@ -42,6 +53,12 @@ func WithInterval(interval time.Duration) func(o *option) {
 func WithCallback(callback func(stats *monitor.SystemStats) error) func(o *option) {
 	return func(o *option) {
 		o.callback = callback
+	}
+}
+
+func WithCategory(category SystemMonitorCategory) func(o *option) {
+	return func(o *option) {
+		o.category = category
 	}
 }
 
@@ -80,9 +97,10 @@ func (s *systemMonitor) run() {
 		case <-s.opt.ctx.Done():
 			return
 		case <-ticker.C:
-			stats, err := CollectStats()
+			ctx := trace.NewContext(nil)
+			stats, err := collectStats(ctx, s.opt.category)
 			if err != nil {
-				logrus.Errorf("收集系统统计信息失败: %v", err)
+				log.Errorf(ctx, "收集系统统计信息失败: %v", err)
 				continue
 			}
 
@@ -90,15 +108,36 @@ func (s *systemMonitor) run() {
 				continue
 			}
 
-			err = s.opt.callback(stats)
-			if err != nil {
-				logrus.Errorf("回调失败: %v", err)
+			for _, si := range stats {
+				err = s.opt.callback(si)
+				if err != nil {
+					log.Errorf(ctx, "回调失败: %v", err)
+				}
 			}
 		}
 	}
 }
 
-func CollectStats() (*monitor.SystemStats, error) {
+func CollectStats(ctx context.Context) ([]*monitor.SystemStats, error) {
+	return collectStats(ctx, SystemMonitorCategoryHost)
+}
+
+func collectStats(ctx context.Context, category SystemMonitorCategory) ([]*monitor.SystemStats, error) {
+	switch category {
+	case SystemMonitorCategoryDocker:
+		return collectDocker(ctx)
+	case SystemMonitorCategoryHost:
+		fallthrough
+	default:
+		stats, err := collectHost(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return []*monitor.SystemStats{stats}, nil
+	}
+}
+
+func collectHost(ctx context.Context) (*monitor.SystemStats, error) {
 	var (
 		stats = &monitor.SystemStats{
 			Timestamp: time.Now(),
@@ -122,7 +161,7 @@ func CollectStats() (*monitor.SystemStats, error) {
 		return nil, err
 	}
 	if len(cpuPercent) > 0 {
-		stats.CPUUsage = cpuPercent[0]
+		stats.CpuUsage = cpuPercent[0]
 	}
 
 	// 收集内存使用率
@@ -183,4 +222,47 @@ func CollectStats() (*monitor.SystemStats, error) {
 
 	stats.LoadAvg = [3]float64{avg.Load1, avg.Load5, avg.Load15}
 	return stats, nil
+}
+
+func collectDocker(ctx context.Context) ([]*monitor.SystemStats, error) {
+	containers, err := docker.GetDockerStat()
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*monitor.SystemStats
+	for _, container := range containers {
+		stats := &monitor.SystemStats{
+			Timestamp: time.Now(),
+			DiskUsage: make(map[string]float64),
+			Id:        container.ContainerID,
+			Name:      container.Name,
+		}
+		{
+			res, err := docker.CgroupCPUDockerWithContext(ctx, container.ContainerID)
+			if err != nil {
+				log.Errorf(ctx, "收集 docker cpu 失败 %v", err)
+				continue
+			}
+
+			stats.CpuUsage = res.Usage
+			stats.UserUsage = res.User
+			stats.SystemUsage = res.System
+		}
+		{
+			res, err := docker.CgroupMemDockerWithContext(ctx, container.ContainerID)
+			if err != nil {
+				log.Errorf(ctx, "收集 docker mem 失败 %v", err)
+				continue
+			}
+
+			stats.TotalMemory = res.MemLimitInBytes
+			stats.CachedMemory = res.Cache
+			stats.UsedMemory = res.MemUsageInBytes
+			stats.MemoryUsage = float64(res.MemUsageInBytes)/float64(res.MemLimitInBytes)
+			stats.RssMemory = res.RSS
+		}
+	}
+
+	return result, nil
 }

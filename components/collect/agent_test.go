@@ -16,7 +16,7 @@ func TestAgentUsage(t*testing.T) {
 	reporter := func(stats *monitor.SystemStats) error {
 		fmt.Printf("系统监控数据:\n")
 		fmt.Printf("  时间: %s\n", stats.Timestamp.Format("2006-01-02 15:04:05"))
-		fmt.Printf("  CPU使用率: %.2f%%\n", stats.CPUUsage)
+		fmt.Printf("  CPU使用率: %.2f%%\n", stats.CpuUsage)
 		fmt.Printf("  内存使用率: %.2f%% (%d/%d MB)\n", stats.MemoryUsage,
 			stats.UsedMemory/1024/1024, stats.TotalMemory/1024/1024)
 		fmt.Printf("  磁盘使用率:\n")
@@ -82,7 +82,7 @@ func TestCustomCollector(t*testing.T) {
 	customReporter := func(stats *monitor.SystemStats) error {
 		// 自定义上报逻辑，例如发送到HTTP API
 		logrus.Infof("自定义上报: CPU=%.2f%%, Memory=%.2f%%",
-			stats.CPUUsage, stats.MemoryUsage)
+			stats.CpuUsage, stats.MemoryUsage)
 		return nil
 	}
 

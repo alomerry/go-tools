@@ -95,38 +95,48 @@ func checkGenUseCons(pass *analysis.Pass, n ast.Node) {
 
 	for _, argIdx := range argConfig {
 		arg := callExpr.Args[argIdx.argIdx]
-		// 情况 1: 基本字面量 (如 "abc", 123) -> 不通过
+
+		// 1. 拦截基本字面量 (如 "abc", 123) -> 不通过
 		if val, success := arg.(*ast.BasicLit); success {
-			pass.Reportf(callExpr.Pos(), "[%s.%s(%s] 不合法，必须导入常量", receiver, methodName, val.Value)
+			pass.Reportf(callExpr.Pos(), "[%s.%s(%s] 不合法，必须是变量或导入 [%s] 包常量", receiver, methodName, val.Value, argIdx.consPkg)
 			return
 		}
-		// 情况 2: 标识符 (如 Admin, myVar)
-		if _, success := arg.(*ast.Ident); success {
-			pass.Reportf(callExpr.Pos(), "[%s.%s] 参数不合法，必须导入 [%s] 包常量", receiver, methodName, argIdx.consPkg)
+
+		// 2. 提取参数对应的对象 (Object)
+		var obj types.Object
+		if ident, ok := arg.(*ast.Ident); ok {
+			// 情况: 单纯的标识符 (如 myVar, req, Admin)
+			obj = pass.TypesInfo.Uses[ident]
+		} else if selExpr, ok := arg.(*ast.SelectorExpr); ok {
+			// 情况: Selector 表达式 (如 common.PIPELINE_NAME, req.Name)
+			obj = pass.TypesInfo.Uses[selExpr.Sel]
+		}
+
+		if obj == nil {
+			pass.Reportf(callExpr.Pos(), "[%s.%s] 参数形式不合法，必须是变量或导入 [%s] 包常量", receiver, methodName, argIdx.consPkg)
 			return
 		}
-		// 情况 3: Selector 表达式 (如 common.PIPELINE_NAME)
-		if selExpr, success := arg.(*ast.SelectorExpr); success {
-			obj := pass.TypesInfo.Uses[selExpr.Sel]
-			if obj == nil {
-				pass.Reportf(callExpr.Pos(), "类型不存在")
-				return
-			}
 
-			if _, isConst := obj.(*types.Const); !isConst {
-				pass.Reportf(callExpr.Pos(), "必须常量")
-				return
-			}
-
-			if obj.Pkg() == nil {
+		// 3. 判断对象是变量还是常量
+		switch objType := obj.(type) {
+		case *types.Var:
+			// 这是一个变量 (包括函数入参、局部变量、结构体字段等)
+			// 允许通过，无需做额外处理
+		case *types.Const:
+			// 这是一个常量，进行包路径校验
+			if objType.Pkg() == nil {
 				pass.Reportf(callExpr.Pos(), "包路径不存在")
 				return
 			}
 
-			if obj.Pkg().Path() != argIdx.consPkg {
-				pass.Reportf(callExpr.Pos(), "[%s.%s] 参数 %d 不合法，目前导入了包 [%s] 常量，要求必须导入 [%s] 包常量", receiver, methodName, argIdx.argIdx, obj.Pkg().Path(), argIdx.consPkg)
+			if objType.Pkg().Path() != argIdx.consPkg {
+				pass.Reportf(callExpr.Pos(), "[%s.%s] 参数 %d 不合法，目前导入了包 [%s] 常量，要求必须导入 [%s] 包常量", receiver, methodName, argIdx.argIdx, objType.Pkg().Path(), argIdx.consPkg)
 				return
 			}
+		default:
+			// 拦截其他的类型（例如函数等）
+			pass.Reportf(callExpr.Pos(), "[%s.%s] 参数类型不合法，必须是变量或常量", receiver, methodName)
+			return
 		}
 	}
 }
