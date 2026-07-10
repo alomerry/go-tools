@@ -1,14 +1,14 @@
 package bark
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/alomerry/go-tools/components/http"
-	req2 "github.com/alomerry/go-tools/components/http/opts/req"
+  "context"
+  "fmt"
+  
+  "github.com/alomerry/go-tools/components/ext"
+  "github.com/alomerry/go-tools/components/http"
+  req2 "github.com/alomerry/go-tools/components/http/opts/req"
   notify2 "github.com/alomerry/go-tools/components/notify"
   "github.com/alomerry/go-tools/static/cons/notify"
-  "github.com/alomerry/go-tools/utils/apollo"
   "github.com/sirupsen/logrus"
 )
 
@@ -31,8 +31,8 @@ type Notifier struct{}
 
 // Send 发送 Bark 通知
 func (n *Notifier) Send(ctx context.Context, msg *notify2.Message) error {
- 
-	cfg := apollo.GetBarkCfg()
+  
+  cfg := ext.Apollo().GetBarkCfg()
 	if cfg == nil {
 		return fmt.Errorf("bark config is nil")
 	}

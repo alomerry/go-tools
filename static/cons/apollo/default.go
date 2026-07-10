@@ -4,6 +4,9 @@ const (
   DefaultApplication = "application"
   DefaultCluster     = "default"
   DefaultEnv         = "dev"
+  
+  DefaultNamespace = "homelab"
+  DefaultApp       = "backend"
 )
 
 const (

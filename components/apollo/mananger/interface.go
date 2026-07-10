@@ -1,7 +1,8 @@
 package mananger
 
 import (
-	apollo2 "github.com/alomerry/go-tools/model/apollo"
+  "github.com/alomerry/go-tools/model"
+  apollo2 "github.com/alomerry/go-tools/model/apollo"
 )
 
 type Manager interface {
@@ -16,4 +17,5 @@ type Manager interface {
 	KafkaCfg() *apollo2.KafkaConfig
   GitCfg() *apollo2.GitConfig
   GitToken(provider string) string
+  RustFs() *model.Config
 }

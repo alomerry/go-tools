@@ -35,7 +35,7 @@ func NewMongoClient(ctx context.Context, uri string) (*Mongo, error) {
     log.Panicf(ctx, "init mongo client failed, err: %v", err.Error())
     return nil, err
   }
-  ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+  ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
   defer cancel()
   if err = client.Ping(ctx, readpref.Primary()); err != nil {
     log.Panicf(ctx, "can't connect mongodb")

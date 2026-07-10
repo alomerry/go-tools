@@ -1,0 +1,125 @@
+package ext
+
+import (
+	"context"
+	"testing"
+
+	"github.com/alomerry/go-tools/components/mongo"
+	"github.com/alomerry/go-tools/static/env"
+	"github.com/alomerry/go-tools/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
+	"go.mongodb.org/mongo-driver/v2/bson"
+)
+
+// MongoExtSuite 对 MongoExt 进行冒烟测试，连接真实的 MongoDB 实例。遵循项目的集成测试
+// 约定（参见 components/mongo/mongo_test.go）：手动构造 ext 实例并注入真实的
+// *mongo.Mongo 客户端，绕过 Init()，因此不依赖 apollo。当本机没有 MongoDB 时，
+// 使用 `go test -short` 可跳过这些集成测试。
+func TestMongoExtSuite(t *testing.T) {
+	suite.Run(t, new(MongoExtSuite))
+}
+
+type MongoExtSuite struct {
+	test.BaseSuite
+	ext        *MongoExt
+	dbName     string
+	collection string
+}
+
+func (s *MongoExtSuite) SetupSuite() {
+	if testing.Short() {
+		s.T().Skip("skipping mongo integration test in short mode")
+	}
+
+	ctx := context.Background()
+	s.dbName = "homelab"
+	s.collection = "ext_test"
+
+	cli, err := mongo.NewMongoClient(ctx, env.GetMongoDSN())
+	if err != nil {
+		s.T().Fatalf("connect mongo failed: %v", err)
+	}
+
+	// 手动构造 ext 实例并注入真实客户端。有意不调用 Init()：它会从 apollo
+	// 拉取配置，而这对被测的 CRUD 方法而言无关紧要。
+	s.ext = &MongoExt{
+		cfg: &MongoExtConfig{Uri: env.GetMongoDSN()},
+		cli: cli,
+	}
+
+	// 从一个干净的集合开始。
+	if err := cli.Client().Database(s.dbName).Collection(s.collection).Drop(ctx); err != nil {
+		s.T().Fatalf("drop collection failed: %v", err)
+	}
+}
+
+func (s *MongoExtSuite) TearDownSuite() {
+	if s.ext == nil || s.ext.cli == nil {
+		return
+	}
+	ctx := context.Background()
+	if err := s.ext.cli.Client().Database(s.dbName).Collection(s.collection).Drop(ctx); err != nil {
+		s.T().Logf("drop collection failed: %v", err)
+	}
+	if err := s.ext.cli.Close(ctx); err != nil {
+		s.T().Logf("close mongo client failed: %v", err)
+	}
+}
+
+// TestInsert 验证 Insert 写入的文档可以被读回。
+func (s *MongoExtSuite) TestInsert() {
+	ctx := context.Background()
+	id := bson.NewObjectID()
+	doc := bson.M{"_id": id, "name": "insert-test"}
+
+	err := s.ext.Insert(ctx, s.collection, doc)
+	assert.NoError(s.T(), err)
+
+	// 直接通过驱动读回，确认写入已落库。
+	var got bson.M
+	err = s.ext.cli.Client().Database(s.dbName).Collection(s.collection).FindOne(ctx, bson.M{"_id": id}).Decode(&got)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), "insert-test", got["name"])
+}
+
+// TestFindOne 验证 FindOne 能解码此前插入的文档。
+func (s *MongoExtSuite) TestFindOne() {
+	ctx := context.Background()
+	id := bson.NewObjectID()
+	assert.NoError(s.T(), s.ext.Insert(ctx, s.collection, bson.M{"_id": id, "name": "find-one-test"}))
+
+	var got bson.M
+	err := s.ext.FindOne(ctx, s.collection, bson.M{"_id": id}, &got)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), "find-one-test", got["name"])
+
+	// 文档不存在时返回未找到错误，而非零值。
+	var missing bson.M
+	err = s.ext.FindOne(ctx, s.collection, bson.M{"_id": bson.NewObjectID()}, &missing)
+	assert.Error(s.T(), err)
+}
+
+// TestCount 验证 Count 返回匹配文档的数量。
+func (s *MongoExtSuite) TestCount() {
+	ctx := context.Background()
+
+	// 使用专属选择器，使计数不受其它同级测试插入文档的影响而保持确定。
+	tag := "count-test"
+	for i := 0; i < 3; i++ {
+		assert.NoError(s.T(), s.ext.Insert(ctx, s.collection, bson.M{
+			"_id":  bson.NewObjectID(),
+			"name": "count-test",
+			"tag":  tag,
+		}))
+	}
+
+	total, err := s.ext.Count(ctx, s.collection, bson.M{"tag": tag})
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), int64(3), total)
+
+	// 无匹配 -> 0，而非报错。
+	zero, err := s.ext.Count(ctx, s.collection, bson.M{"tag": "nonexistent"})
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), int64(0), zero)
+}

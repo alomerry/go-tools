@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/rs/xid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerateToken(t *testing.T) {
 	var (
 		secret = "123"
-		claim  = NewCustomClaims("temp", uuid.NewString(), "test", "1s")
+		claim  = NewCustomClaims("temp", xid.New().String(), "test", "1s")
 	)
 
 	token, err := GenerateToken(claim, secret)

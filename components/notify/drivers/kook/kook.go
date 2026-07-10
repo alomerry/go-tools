@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/alomerry/go-tools/components/kook/client"
+  
+  "github.com/alomerry/go-tools/components/ext"
+  "github.com/alomerry/go-tools/components/kook/client"
 	model2 "github.com/alomerry/go-tools/components/kook/model"
   "github.com/alomerry/go-tools/components/notify"
   notify2 "github.com/alomerry/go-tools/static/cons/notify"
-  "github.com/alomerry/go-tools/utils/apollo"
   "github.com/sirupsen/logrus"
 )
 
@@ -37,7 +37,7 @@ type Notifier struct {
 
 // Send 发送 Kook 通知
 func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
-	cfg := apollo.GetKookConfig()
+  cfg := ext.Apollo().KookCfg()
 	if cfg == nil {
 		return fmt.Errorf("kook config is nil")
 	}

@@ -6,7 +6,7 @@ import (
 	"github.com/alomerry/cat-go/message"
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/utils"
-	"github.com/google/uuid"
+	"github.com/rs/xid"
 	"github.com/spf13/cast"
 )
 
@@ -30,7 +30,7 @@ func GetTraceId(ctx context.Context, defaultVal string) string {
 func GetOrNewTraceId(ctx context.Context) (string, bool) {
 	tid := GetTraceId(ctx, "")
 	if len(tid) == 0 {
-		return uuid.New().String(), false
+		return xid.New().String(), false
 	}
 
 	return tid, true

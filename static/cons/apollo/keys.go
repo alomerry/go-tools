@@ -8,6 +8,7 @@ const (
   ApolloKeyMongoCfg = "mongodb.cfg"
   
   R2Config = "r2.config"
+  RustFsConfig = "rust-fs.config"
   
   GitConfig = "git.cfg,dynamic"
   

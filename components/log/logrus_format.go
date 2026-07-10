@@ -11,7 +11,7 @@ import (
 	"github.com/alomerry/go-tools/utils"
 	time2 "github.com/alomerry/go-tools/utils/time"
 	"github.com/alomerry/go-tools/utils/trace"
-	"github.com/google/uuid"
+	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 )
@@ -43,7 +43,7 @@ func (c *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	}
 
 	if len(traceId) == 0 {
-		traceId = uuid.New().String()
+		traceId = xid.New().String()
 	}
 
 	_, _ = fmt.Fprintf(&buffer, "[%s]•[%s]•[%s]:[%s]",
