@@ -13,6 +13,7 @@ type OSSClient interface {
 	RemoveObject(ctx context.Context, objectKey string) error
 	StatObject(ctx context.Context, objectKey string) (ObjectInfo, error)
 	PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error)
+	PresignedPutObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error)
 	CreateBucket(ctx context.Context, bucketName string) error
 	ListObjects(ctx context.Context, bucketName string, prefix string, recursive bool) ([]ObjectInfo, error)
 	RemoveBucket(ctx context.Context, bucketName string) error

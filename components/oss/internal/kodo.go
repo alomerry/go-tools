@@ -2,12 +2,13 @@ package internal
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
-  
-  "github.com/alomerry/go-tools/components/oss/meta"
-  "github.com/alomerry/go-tools/model"
-  "github.com/alomerry/go-tools/static/cons"
+
+	"github.com/alomerry/go-tools/components/oss/meta"
+	"github.com/alomerry/go-tools/model"
+	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/static/env/oss"
 	"github.com/alomerry/go-tools/utils/files"
 	"github.com/qiniu/go-sdk/v7/storagev2/credentials"
@@ -65,7 +66,7 @@ func (q *client) PutObject(ctx context.Context, objectKey string, reader io.Read
 
 func (q *client) GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error) {
 	//TODO implement me
-	panic("implement me")
+	return nil, errors.New("not implemented")
 }
 
 func (q *client) DownloadToFile(ctx context.Context, objectKey string) (string, error) {
@@ -94,37 +95,42 @@ func (q *client) DownloadToFile(ctx context.Context, objectKey string) (string, 
 	if downloaded == 0 {
 		// TODO
 	}
-	panic("implement me")
+	return tmpFileName, nil
 }
 
 func (q *client) RemoveObject(ctx context.Context, objectKey string) error {
 	//TODO implement me
-	panic("implement me")
+	return errors.New("not implemented")
 }
 
 func (q *client) StatObject(ctx context.Context, objectKey string) (meta.ObjectInfo, error) {
 	//TODO implement me
-	panic("implement me")
+	return meta.ObjectInfo{}, errors.New("not implemented")
 }
 
 func (q *client) PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
 	//TODO implement me
-	panic("implement me")
+	return "", errors.New("not implemented")
+}
+
+func (q *client) PresignedPutObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
+	//TODO implement me
+	return "", errors.New("not implemented")
 }
 
 func (q *client) CreateBucket(ctx context.Context, bucketName string) error {
 	//TODO implement me
-	panic("implement me")
+	return errors.New("not implemented")
 }
 
 func (q *client) ListObjects(ctx context.Context, bucketName string, prefix string, recursive bool) ([]meta.ObjectInfo, error) {
 	//TODO implement me
-	panic("implement me")
+	return nil, errors.New("not implemented")
 }
 
 func (q *client) RemoveBucket(ctx context.Context, bucketName string) error {
 	//TODO implement me
-	panic("implement me")
+	return errors.New("not implemented")
 }
 
 func (q *client) Bucket(ctx context.Context, bucketName string) meta.OSSClient {

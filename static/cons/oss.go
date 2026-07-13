@@ -3,5 +3,6 @@ package cons
 const (
 	OssBucketCdn  = "cdn"
 	OssBucketBlog = "blog"
-  OssBucketCat = "cat"
+	OssBucketCat  = "cat"
+	OssBucketBook = "book"
 )

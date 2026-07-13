@@ -1,21 +1,21 @@
 package internal
 
 import (
-  "context"
-  "io"
-  "os"
-  "time"
-  
-  "github.com/alomerry/go-tools/components/ext"
-  "github.com/alomerry/go-tools/components/oss/meta"
-  "github.com/alomerry/go-tools/model"
-  "github.com/alomerry/go-tools/static/cons"
-  "github.com/alomerry/go-tools/static/env"
-  "github.com/alomerry/go-tools/utils/files"
-  "github.com/aws/aws-sdk-go-v2/aws"
-  "github.com/aws/aws-sdk-go-v2/config"
-  "github.com/aws/aws-sdk-go-v2/credentials"
-  "github.com/aws/aws-sdk-go-v2/service/s3"
+	"context"
+	"io"
+	"os"
+	"time"
+
+	"github.com/alomerry/go-tools/components/ext"
+	"github.com/alomerry/go-tools/components/oss/meta"
+	"github.com/alomerry/go-tools/model"
+	"github.com/alomerry/go-tools/static/cons"
+	"github.com/alomerry/go-tools/static/env"
+	"github.com/alomerry/go-tools/utils/files"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type RustFs struct {
@@ -34,7 +34,7 @@ func NewDefaultRustFs() (meta.OSSClient, error) {
 func NewRustFs(cfg model.Config) (meta.OSSClient, error) {
 	if cfg.Endpoint == "" || cfg.AccessKey == "" || cfg.SecretKey == "" {
 		// return nil, errors.New("endpoint or accessKey or secretKey is empty")
-    cfg = *ext.Apollo().RustFs()
+		cfg = *ext.Apollo().RustFs()
 	}
 
 	return newRustFs(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey)
@@ -165,6 +165,18 @@ func (r *RustFs) StatObject(ctx context.Context, objectKey string) (meta.ObjectI
 func (r *RustFs) PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
 	presigner := s3.NewPresignClient(r.client)
 	req, err := presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: &r.bucket,
+		Key:    &objectKey,
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", err
+	}
+	return req.URL, nil
+}
+
+func (r *RustFs) PresignedPutObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
+	presigner := s3.NewPresignClient(r.client)
+	req, err := presigner.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket: &r.bucket,
 		Key:    &objectKey,
 	}, s3.WithPresignExpires(expiry))

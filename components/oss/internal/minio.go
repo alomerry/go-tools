@@ -1,15 +1,16 @@
 package internal
 
 import (
-  "context"
-  "io"
-  "log"
-  "time"
-  
-  "github.com/alomerry/go-tools/components/oss/meta"
-  "github.com/alomerry/go-tools/model"
-  "github.com/minio/minio-go/v7"
-  "github.com/minio/minio-go/v7/pkg/credentials"
+	"context"
+	"errors"
+	"io"
+	"log"
+	"time"
+
+	"github.com/alomerry/go-tools/components/oss/meta"
+	"github.com/alomerry/go-tools/model"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 type minioClient struct {
@@ -23,7 +24,7 @@ func NewMinioClient(cfg model.Config) (meta.OSSClient, error) {
 		Secure: cfg.SSL,
 	})
 	if err != nil {
-		log.Fatalln("初始化客户端失败:", err)
+		return nil, err
 	}
 	log.Printf("MinIO 客户端已连接: %#v\n", client)
 	return &minioClient{
@@ -34,7 +35,7 @@ func NewMinioClient(cfg model.Config) (meta.OSSClient, error) {
 
 func (m *minioClient) DownloadToFile(ctx context.Context, objectKey string) (string, error) {
 	//TODO implement me
-	panic("implement me")
+	return "", errors.New("not implemented")
 }
 
 func (m *minioClient) PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error {
@@ -74,6 +75,14 @@ func (m *minioClient) StatObject(ctx context.Context, objectKey string) (meta.Ob
 
 func (m *minioClient) PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
 	url, err := m.client.PresignedGetObject(ctx, m.bucketName, objectKey, expiry, nil)
+	if err != nil {
+		return "", err
+	}
+	return url.String(), nil
+}
+
+func (m *minioClient) PresignedPutObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
+	url, err := m.client.PresignedPutObject(ctx, m.bucketName, objectKey, expiry)
 	if err != nil {
 		return "", err
 	}

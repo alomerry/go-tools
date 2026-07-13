@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"time"
 
 	"github.com/alomerry/go-tools/components/oss/meta"
-  "github.com/alomerry/go-tools/model"
-  "github.com/alomerry/go-tools/static/cons"
+	"github.com/alomerry/go-tools/model"
+	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/utils/files"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -63,7 +62,7 @@ func newCloudflareR2(accountId, r2Key, r2Secret string) (*CloudflareR2, error) {
 func (c *CloudflareR2) UploadFromLocal(ctx context.Context, bucket, filePath, ossPath string) (any, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	resp, err := c.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      &bucket,
@@ -72,19 +71,19 @@ func (c *CloudflareR2) UploadFromLocal(ctx context.Context, bucket, filePath, os
 		ContentType: nil, // TODO
 	})
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	return resp, nil
 }
 
 func (c *CloudflareR2) PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error {
 	//TODO implement me
-	panic("implement me")
+	return errors.New("not implemented")
 }
 
 func (c *CloudflareR2) GetObject(ctx context.Context, objectKey string) (io.ReadCloser, error) {
 	//TODO implement me
-	panic("implement me")
+	return nil, errors.New("not implemented")
 }
 
 func (c *CloudflareR2) DownloadToFile(ctx context.Context, objectKey string) (string, error) {
@@ -113,32 +112,37 @@ func (c *CloudflareR2) DownloadToFile(ctx context.Context, objectKey string) (st
 
 func (c *CloudflareR2) RemoveObject(ctx context.Context, objectKey string) error {
 	//TODO implement me
-	panic("implement me")
+	return errors.New("not implemented")
 }
 
 func (c *CloudflareR2) StatObject(ctx context.Context, objectKey string) (meta.ObjectInfo, error) {
 	//TODO implement me
-	panic("implement me")
+	return meta.ObjectInfo{}, errors.New("not implemented")
 }
 
 func (c *CloudflareR2) PresignedGetObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
 	//TODO implement me
-	panic("implement me")
+	return "", errors.New("not implemented")
+}
+
+func (c *CloudflareR2) PresignedPutObject(ctx context.Context, objectKey string, expiry time.Duration) (string, error) {
+	//TODO implement me
+	return "", errors.New("not implemented")
 }
 
 func (c *CloudflareR2) CreateBucket(ctx context.Context, bucketName string) error {
 	//TODO implement me
-	panic("implement me")
+	return errors.New("not implemented")
 }
 
 func (c *CloudflareR2) ListObjects(ctx context.Context, bucketName string, prefix string, recursive bool) ([]meta.ObjectInfo, error) {
 	//TODO implement me
-	panic("implement me")
+	return nil, errors.New("not implemented")
 }
 
 func (c *CloudflareR2) RemoveBucket(ctx context.Context, bucketName string) error {
 	//TODO implement me
-	panic("implement me")
+	return errors.New("not implemented")
 }
 
 func (c *CloudflareR2) Bucket(_ context.Context, bucketName string) meta.OSSClient {
