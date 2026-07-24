@@ -11,5 +11,17 @@ type ErrorResponse struct {
 }
 
 func (e *ErrorResponse) Error() string {
-	return fmt.Sprintf("apollo: %d %s", e.Status, e.Message)
+	// Always include the HTTP status and the top-level message Apollo returns.
+	// Preserve the exception (stack trace / root cause) and timestamp fields so
+	// callers can see the exact reason Apollo rejected the request, e.g. when a
+	// token lacks publish permission Apollo returns a 403 with an exception that
+	// would otherwise be silently dropped.
+	msg := fmt.Sprintf("apollo: %d %s", e.Status, e.Message)
+	if e.Exception != "" {
+		msg += ", exception: " + e.Exception
+	}
+	if e.Timestamp != "" {
+		msg += ", timestamp: " + e.Timestamp
+	}
+	return msg
 }
