@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strings"
 	"time"
-  
-  "github.com/alomerry/go-tools/components/ext"
-  "github.com/alomerry/go-tools/components/kook/client"
+
+	"github.com/alomerry/go-tools/components/ext"
+	"github.com/alomerry/go-tools/components/kook/client"
 	model2 "github.com/alomerry/go-tools/components/kook/model"
-  "github.com/alomerry/go-tools/components/notify"
-  notify2 "github.com/alomerry/go-tools/static/cons/notify"
-  "github.com/sirupsen/logrus"
+	"github.com/alomerry/go-tools/components/notify"
+	notify2 "github.com/alomerry/go-tools/static/cons/notify"
+	strutil "github.com/alomerry/go-tools/utils/string"
+	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -37,7 +38,7 @@ type Notifier struct {
 
 // Send 发送 Kook 通知
 func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
-  cfg := ext.Apollo().KookCfg()
+	cfg := ext.Apollo().KookCfg()
 	if cfg == nil {
 		return fmt.Errorf("kook config is nil")
 	}
@@ -58,26 +59,49 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 		level = l
 	}
 
-	theme := "warning"
+	theme := model2.CardThemeWarning
 	if strings.EqualFold(level, "Error") {
-		theme = "danger"
+		theme = model2.CardThemeDanger
 	} else if strings.EqualFold(level, "Recovery") {
-		theme = "success"
+		theme = model2.CardThemeSuccess
 	}
 
 	title := msg.Subject
 	if title == "" {
 		title = "系统通知"
 	}
-
-	// 构建卡片消息
-	// 使用 strings.ReplaceAll 处理换行和制表符
-	content := strings.ReplaceAll(msg.Content, "\n", "\\n")
-	content = strings.ReplaceAll(content, "\t", "\\t")
+	escTitle := strutil.EscapeKMarkdown(title)
+	escContent := strutil.EscapeKMarkdown(msg.Content)
 
 	now := time.Now().Format("2006-01-02 15:04:05")
-	card := fmt.Sprintf(`[{"type":"card","theme":"%s","modules":[{"type":"section","text":{"type":"kmarkdown","content":"%s\n%s"}},{"type":"context","elements":[{"type":"plain-text","content":"%s"}]}]}]`,
-		theme, title, content, now)
+
+	builder := model2.NewCardBuilder().
+		Theme(theme).
+		AddSectionKmarkdown(fmt.Sprintf("%s\n%s", escTitle, escContent)).
+		AddContextKmarkdown(now)
+
+	if len(msg.Buttons) > 0 {
+		buttons := make([]model2.ElementButton, 0, len(msg.Buttons))
+		for _, btn := range msg.Buttons {
+			btnTheme := model2.CardThemePrimary
+			if btn.Theme != "" {
+				btnTheme = model2.CardTheme(btn.Theme)
+			}
+			buttons = append(buttons, model2.ElementButton{
+				Type:  model2.ElementTypeButton,
+				Theme: btnTheme,
+				Value: btn.Value,
+				Click: "return-val",
+				Text: model2.ElementText{
+					Type:    model2.ElementTypePlainText,
+					Content: btn.Text,
+				},
+			})
+		}
+		builder.AddActionGroup(buttons)
+	}
+
+	card := model2.NewCardMessageBuilder().AddCard(builder.Build()).Build()
 
 	logrus.Infof("kook notify card: %s", card)
 

@@ -6,8 +6,14 @@ package notify
 
 import (
 	"context"
-  "fmt"
+	"fmt"
 )
+
+type Button struct {
+	Text  string `json:"text"`
+	Theme string `json:"theme,omitempty"` // primary, success, danger, warning, info, secondary
+	Value string `json:"value"`
+}
 
 // Message 定义了通知消息的结构
 type Message struct {
@@ -15,6 +21,7 @@ type Message struct {
 	Content     string                 `json:"content"`
 	Attachments []string               `json:"attachments"`
 	Extra       map[string]interface{} `json:"extra"`
+	Buttons     []Button               `json:"buttons,omitempty"`
 }
 
 // Notifier 是通知驱动必须实现的接口
@@ -40,11 +47,11 @@ func (n NotifierWrapper) Close() error {
 }
 
 func (n NotifierWrapper) Send(ctx context.Context, opts ...Option) error {
-  if n.notifier == nil {
-    return fmt.Errorf("notifier instance not found")
-  }
-  
-  msg := &Message{}
+	if n.notifier == nil {
+		return fmt.Errorf("notifier instance not found")
+	}
+
+	msg := &Message{}
 	for _, opt := range opts {
 		opt.apply(msg)
 	}

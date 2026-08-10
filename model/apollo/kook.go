@@ -4,6 +4,7 @@ type KookConfig struct {
 	EncryptedKey        string            `json:"encryptedKey"`
 	Token               string            `json:"token"`
 	VerifyToken         string            `json:"verifyToken"`
+	IpBanToken          string            `json:"ipBanToken"`
 	RootNotifyChannelId string            `json:"rootNotifyChannelId"`
 	RootUserId          string            `json:"rootUserId"`
 	GroupChannel        map[string]string `json:"groupChannel"`
