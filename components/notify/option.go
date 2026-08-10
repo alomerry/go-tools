@@ -54,3 +54,11 @@ func WithExtras(extras map[string]interface{}) Option {
 		}
 	})
 }
+
+// WithButtons sets the interactive buttons attached to the message. Drivers
+// that support interactive cards render them as clickable elements.
+func WithButtons(buttons []Button) Option {
+	return OptionFunc(func(msg *Message) {
+		msg.Buttons = buttons
+	})
+}
