@@ -192,6 +192,36 @@ func (s *RedisExtSuite) TestDel() {
 
 // --- getter / Getter 纯逻辑单元测试（无需 redis） ---
 
+// TestNotInitialized 验证扩展未初始化（redis == nil）时各方法返回错误而非
+// 裸解引用触发 panic。
+func TestNotInitialized(t *testing.T) {
+	ctx := context.Background()
+	ext := &RedisExtension{}
+
+	_, err := ext.Get(ctx, "k")
+	assert.Error(t, err)
+
+	_, err = ext.HGet(ctx, "k", "f")
+	assert.Error(t, err)
+
+	_, err = ext.HGetAll(ctx, "k")
+	assert.Error(t, err)
+
+	_, err = ext.Del(ctx, "k")
+	assert.Error(t, err)
+
+	assert.Error(t, ext.Set(ctx, "k", "v"))
+	assert.Error(t, ext.SetEx(ctx, "k", "v", time.Second))
+	assert.Error(t, ext.HSet(ctx, "k", "f", "v"))
+	assert.Error(t, ext.HSetField(ctx, "k", "f", "v"))
+
+	// nil 接收者（扩展完全未加载）也必须返回 error 而非 panic。
+	var nilExt *RedisExtension
+	_, err = nilExt.Get(ctx, "k")
+	assert.Error(t, err)
+	assert.Error(t, nilExt.Set(ctx, "k", "v"))
+}
+
 func TestGetterEmpty(t *testing.T) {
 	assert.True(t, getter{value: nil}.Empty())
 	assert.False(t, getter{value: "x"}.Empty())
