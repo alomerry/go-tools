@@ -123,3 +123,44 @@ func (s *MongoExtSuite) TestCount() {
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), int64(0), zero)
 }
+
+// TestFindPageWithSort 验证 FindPageWithSort 的显式排序生效，且空 sort 时
+// 缺省行为与 FindPage（_id 升序）一致。
+func (s *MongoExtSuite) TestFindPageWithSort() {
+	ctx := context.Background()
+	tag := "sort-test"
+
+	for _, v := range []int{3, 1, 2} {
+		assert.NoError(s.T(), s.ext.Insert(ctx, s.collection, bson.M{
+			"_id": bson.NewObjectID(),
+			"tag": tag,
+			"seq": v,
+		}))
+	}
+
+	// 显式 seq 降序。
+	var desc []bson.M
+	total, err := s.ext.FindPageWithSort(ctx, s.collection, bson.M{"tag": tag}, &desc, 1, 10, bson.D{{Key: "seq", Value: -1}})
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), int64(3), total)
+	assert.Len(s.T(), desc, 3)
+	var gotDesc []int32
+	for _, d := range desc {
+		gotDesc = append(gotDesc, d["seq"].(int32))
+	}
+	assert.Equal(s.T(), []int32{3, 2, 1}, gotDesc)
+
+	// 空 sort 缺省 _id 升序：仅验证返回全集与总数，与 FindPage 行为对齐。
+	var asc []bson.M
+	total, err = s.ext.FindPageWithSort(ctx, s.collection, bson.M{"tag": tag}, &asc, 1, 10, nil)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), int64(3), total)
+	assert.Len(s.T(), asc, 3)
+
+	// FindPage 保持原签名并委托给缺省排序。
+	var viaFindPage []bson.M
+	total, err = s.ext.FindPage(ctx, s.collection, bson.M{"tag": tag}, &viaFindPage, 1, 10)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), int64(3), total)
+	assert.Len(s.T(), viaFindPage, 3)
+}

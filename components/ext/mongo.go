@@ -95,18 +95,29 @@ func (m *MongoExt) FindAll(ctx context.Context, collectionName string, selector 
 }
 
 func (m *MongoExt) FindPage(ctx context.Context, collectionName string, selector bson.M, result any, page, limit int64) (int64, error) {
+	return m.FindPageWithSort(ctx, collectionName, selector, result, page, limit, nil)
+}
+
+// FindPageWithSort 与 FindPage 相同，但允许调用方指定排序。sort 为空时缺省
+// _id 升序，保证分页顺序稳定。page/limit 非正数时钳制为 1/10，避免负数产生
+// 非法 skip/limit。
+func (m *MongoExt) FindPageWithSort(ctx context.Context, collectionName string, selector bson.M, result any, page, limit int64, sort bson.D) (int64, error) {
 	databaseName := m.dbOf(collectionName)
 
-	if page == 0 {
+	if page < 1 {
 		page = 1
 	}
 
-	if limit == 0 {
+	if limit < 1 {
 		limit = 10
 	}
 
+	if len(sort) == 0 {
+		sort = bson.D{{Key: "_id", Value: 1}}
+	}
+
 	// sort to keep paging order stable
-	findOptions := options.Find().SetSkip((page - 1) * limit).SetLimit(limit).SetSort(bson.D{{Key: "_id", Value: 1}})
+	findOptions := options.Find().SetSkip((page - 1) * limit).SetLimit(limit).SetSort(sort)
 	cursor, err := m.cli.Client().Database(databaseName).Collection(collectionName).Find(ctx, selector, findOptions)
 	if err != nil {
 		return 0, err
