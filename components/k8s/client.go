@@ -8,6 +8,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
+	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 type Client struct {
@@ -15,6 +16,7 @@ type Client struct {
 	dynamicClient   *dynamic.DynamicClient
 	discoveryClient *discovery.DiscoveryClient
 	mapper          *restmapper.DeferredDiscoveryRESTMapper
+	metricsClient   *metricsclient.Clientset
 	config          *rest.Config
 }
 
@@ -59,6 +61,12 @@ func NewClient(kubeconfig string) (*Client, error) {
 		return nil, err
 	}
 
+	// 初始化 metrics 客户端（metrics.k8s.io，依赖集群已安装 metrics-server）
+	metricsClient, err := metricsclient.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
 	// 初始化 RESTMapper
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discoveryClient))
 
@@ -66,6 +74,7 @@ func NewClient(kubeconfig string) (*Client, error) {
 		clientset:       clientset,
 		dynamicClient:   dynamicClient,
 		discoveryClient: discoveryClient,
+		metricsClient:   metricsClient,
 		mapper:          mapper,
 		config:          config,
 	}, nil
