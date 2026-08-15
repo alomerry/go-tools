@@ -31,24 +31,20 @@ func NewAdminClient(opts ...Option) (*AdminClient, error) {
 		return nil, errors.New("kafka admin client: missing broker address")
 	}
 
-	dialer := &net.Dialer{
+	netDialer := &net.Dialer{
 		Timeout: options.writeTimeout,
 	}
 	transport := &kafka.Transport{
 		DialTimeout: options.writeTimeout,
-		Dial:        dialer.DialContext,
+		Dial:        netDialer.DialContext,
 	}
 	if options.sasl != nil {
 		transport.SASL = options.sasl
 	}
 
-	readerDialer := &kafka.Dialer{
-		Timeout:   30 * time.Second, // 与 NewKafkaDialer 保持一致（兼容 SSH 隧道/nginx 代理）
-		KeepAlive: 10 * time.Second,
-	}
-	if options.sasl != nil {
-		readerDialer.SASLMechanism = options.sasl
-	}
+	// 复用 NewKafkaDialer：与 Client/Producer 一致的拨号配置（30s 超时/keepalive/
+	// 禁用 IPv6，兼容 SSH 隧道与 nginx 代理）。
+	dialer, _ := NewKafkaDialer(opts...)
 
 	return &AdminClient{
 		client: &kafka.Client{
@@ -57,7 +53,7 @@ func NewAdminClient(opts ...Option) (*AdminClient, error) {
 			Transport: transport,
 		},
 		transport: transport,
-		dialer:    readerDialer,
+		dialer:    dialer,
 		addresses: options.addresses,
 	}, nil
 }
@@ -75,13 +71,10 @@ type TopicMeta struct {
 	Name              string
 	Partitions        int
 	ReplicationFactor int
-	Internal          bool
 	RetentionMs       int64
 	SegmentBytes      int64
 	// MessageCount 为消息量估算：各分区 logEndOffset-logStartOffset 求和。
 	MessageCount int64
-	// UnderReplicated 是否存在 ISR 数小于副本数的分区（存在未同步副本）。
-	UnderReplicated bool
 }
 
 // ListTopics 返回全部 topic 的元数据。内部依次调用 Metadata（分区/副本/ISR）、
@@ -119,9 +112,7 @@ func (a *AdminClient) ListTopics(ctx context.Context) ([]TopicMeta, error) {
 			Name:              t.Name,
 			Partitions:        len(t.Partitions),
 			ReplicationFactor: replicationFactor(t),
-			Internal:          t.Internal,
 			MessageCount:      counts[name],
-			UnderReplicated:   underReplicated(t),
 		}
 		if entries := configs[name]; entries != nil {
 			meta.RetentionMs, _ = strconv.ParseInt(entries["retention.ms"], 10, 64)
@@ -162,9 +153,7 @@ func (a *AdminClient) topicConfigs(ctx context.Context, topics []string) (map[st
 func (a *AdminClient) messageCounts(ctx context.Context, topics []kafka.Topic) (map[string]int64, error) {
 	reqTopics := make(map[string][]kafka.OffsetRequest)
 	for _, t := range topics {
-		for _, p := range t.Partitions {
-			reqTopics[t.Name] = append(reqTopics[t.Name], kafka.FirstOffsetOf(p.ID), kafka.LastOffsetOf(p.ID))
-		}
+		reqTopics[t.Name] = partitionBounds(t.Partitions)
 	}
 	resp, err := a.client.ListOffsets(ctx, &kafka.ListOffsetsRequest{Topics: reqTopics})
 	if err != nil {
@@ -202,9 +191,7 @@ func (a *AdminClient) TopicOffsets(ctx context.Context, topics []string) (map[st
 
 	reqTopics := make(map[string][]kafka.OffsetRequest)
 	for _, t := range md.Topics {
-		for _, p := range t.Partitions {
-			reqTopics[t.Name] = append(reqTopics[t.Name], kafka.FirstOffsetOf(p.ID), kafka.LastOffsetOf(p.ID))
-		}
+		reqTopics[t.Name] = partitionBounds(t.Partitions)
 	}
 	offResp, err := a.client.ListOffsets(ctx, &kafka.ListOffsetsRequest{Topics: reqTopics})
 	if err != nil {
@@ -390,9 +377,7 @@ func (a *AdminClient) ReadLatestMessages(ctx context.Context, topic string, coun
 	parts := md.Topics[0].Partitions
 
 	reqTopics := make(map[string][]kafka.OffsetRequest, len(parts))
-	for _, p := range parts {
-		reqTopics[topic] = append(reqTopics[topic], kafka.FirstOffsetOf(p.ID), kafka.LastOffsetOf(p.ID))
-	}
+	reqTopics[topic] = partitionBounds(parts)
 	offResp, err := a.client.ListOffsets(ctx, &kafka.ListOffsetsRequest{Topics: reqTopics})
 	if err != nil {
 		return nil, fmt.Errorf("kafka admin client: list offsets failed: %w", err)
@@ -512,14 +497,13 @@ func replicationFactor(t kafka.Topic) int {
 	return len(t.Partitions[0].Replicas)
 }
 
-// underReplicated 判断是否存在 ISR 数小于副本数的分区。
-func underReplicated(t kafka.Topic) bool {
-	for _, p := range t.Partitions {
-		if len(p.Replicas) > 0 && len(p.Isr) < len(p.Replicas) {
-			return true
-		}
+// partitionBounds 为每个分区生成 First+Last 两条 offset 请求，用于消息量估算/水位查询。
+func partitionBounds(parts []kafka.Partition) []kafka.OffsetRequest {
+	reqs := make([]kafka.OffsetRequest, 0, len(parts)*2)
+	for _, p := range parts {
+		reqs = append(reqs, kafka.FirstOffsetOf(p.ID), kafka.LastOffsetOf(p.ID))
 	}
-	return false
+	return reqs
 }
 
 func nilIfEmpty(s []string) []string {
