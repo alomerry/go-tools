@@ -53,7 +53,7 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 %s
 %s
 %s
-|> aggregateWindow(every: %s, fn: mean)
+|> aggregateWindow(every: %s, fn: mean, createEmpty: false)
 `,
 		t.Bucket,
 		start, end,
@@ -169,7 +169,9 @@ func (t *TsdbQueryOptions) getGroup() string {
 		group string
 	)
 	if len(t.Groups) == 0 {
-		return `|> group(columns: [])`
+		// 无 tag 分组时仍按 _field 分组，保留字段身份，使 record.Field() 不为空，
+		// series 名恢复为真实字段名；与非空 case（Groups + "_field"）规则统一。
+		return `|> group(columns: ["_field"])`
 	}
 
 	val, _ := json.Marshal(append(t.Groups, "_field"))

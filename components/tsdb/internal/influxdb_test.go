@@ -1,15 +1,15 @@
 package internal
 
 import (
-  "context"
-  "os"
-  "testing"
-  "time"
-  
-  "github.com/alomerry/go-tools/components/tsdb/def"
-  "github.com/alomerry/go-tools/static/cons/tsdb"
-  "github.com/spf13/cast"
-  "github.com/stretchr/testify/assert"
+	"context"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/alomerry/go-tools/components/tsdb/def"
+	"github.com/alomerry/go-tools/static/cons/tsdb"
+	"github.com/spf13/cast"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestReadMetric(t *testing.T) {
@@ -17,32 +17,36 @@ func TestReadMetric(t *testing.T) {
 	org := os.Getenv("INFLUXDB_ORG")
 	token := os.Getenv("INFLUXDB_TOKEN")
 
+	if endpoint == "" || org == "" || token == "" {
+		t.Skip("Skipping test: INFLUXDB_ENDPOINT, INFLUXDB_ORG, and INFLUXDB_TOKEN must be set")
+	}
+
 	ctx := context.Background()
 	client, err := NewInfluxdbClient(ctx, org, endpoint, "", token)
 
 	assert.NoError(t, err)
 	defer client.Close()
-  
-  timeZone, _ := time.LoadLocation("Asia/Shanghai")
-  startTime, err := cast.StringToDateInDefaultLocation("2026-03-23T08:13:45.000Z", timeZone)
-  assert.NoError(t, err)
-  
-  endTime, err := cast.StringToDateInDefaultLocation("2026-03-23T08:16:45.000Z", timeZone)
-  assert.NoError(t, err)
-  
-  options := append([]func(*def.TsdbQueryOptions){},
+
+	timeZone, _ := time.LoadLocation("Asia/Shanghai")
+	startTime, err := cast.StringToDateInDefaultLocation("2026-03-23T08:13:45.000Z", timeZone)
+	assert.NoError(t, err)
+
+	endTime, err := cast.StringToDateInDefaultLocation("2026-03-23T08:16:45.000Z", timeZone)
+	assert.NoError(t, err)
+
+	options := append([]func(*def.TsdbQueryOptions){},
 		def.WithBucket("homelab"),
 		def.WithMeasurement("cpu.usage"),
 		def.WithFields("usage", "cnt"),
 		def.WithGroup("service"),
-    def.WithStart(startTime),
-    def.WithEnd(endTime),
+		def.WithStart(startTime),
+		def.WithEnd(endTime),
 		def.WithTag("service", tsdb.OpEqual, "homelab-backend-account"),
 	)
-  
-  res, err := client.Query(ctx, options...)
-  assert.NoError(t, err)
-  assert.NotNil(t, res)
+
+	res, err := client.Query(ctx, options...)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
 }
 
 func TestDefault_LogPoint(t *testing.T) {
@@ -140,11 +144,11 @@ func TestNewDefaultCat(t *testing.T) {
 	})
 
 	t.Run("validates org", func(t *testing.T) {
-		endpoint := os.Getenv("INFLUXDB_ENDPOINT")
 		token := os.Getenv("INFLUXDB_TOKEN")
 
 		ctx := context.Background()
-		_, err := NewInfluxdbClient(ctx, "", endpoint, "", token)
+		// use a dummy endpoint so validate() reaches the org check regardless of env
+		_, err := NewInfluxdbClient(ctx, "", "http://localhost:8086", "", token)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "org")
 	})

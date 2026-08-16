@@ -85,3 +85,44 @@ func TestGetQueryRangeTimeLiteral(t *testing.T) {
 		})
 	}
 }
+
+func TestGetQueryGroupEmptyKeepsField(t *testing.T) {
+	query := new(TsdbQueryOptions)
+	query.Apply(
+		WithBucket("homelab"),
+		WithMeasurement("cpu.usage"),
+		WithFields("usage"),
+	)
+
+	str, err := query.GetQuery()
+	assert.NoError(t, err)
+	assert.Contains(t, str, `|> group(columns: ["_field"])`)
+	assert.NotContains(t, str, `|> group(columns: [])`)
+}
+
+func TestGetQueryGroupWithTagsKeepsField(t *testing.T) {
+	query := new(TsdbQueryOptions)
+	query.Apply(
+		WithBucket("homelab"),
+		WithMeasurement("cpu.usage"),
+		WithFields("usage"),
+		WithGroup("service"),
+	)
+
+	str, err := query.GetQuery()
+	assert.NoError(t, err)
+	assert.Contains(t, str, `|> group(columns: ["service","_field"])`)
+}
+
+func TestGetQueryAggregateWindowCreateEmptyFalse(t *testing.T) {
+	query := new(TsdbQueryOptions)
+	query.Apply(
+		WithBucket("homelab"),
+		WithMeasurement("cpu.usage"),
+		WithFields("usage"),
+	)
+
+	str, err := query.GetQuery()
+	assert.NoError(t, err)
+	assert.Contains(t, str, `|> aggregateWindow(every: 5s, fn: mean, createEmpty: false)`)
+}

@@ -175,6 +175,18 @@ func (d *influxdbClient) Query(ctx context.Context, opts ...func(*def.TsdbQueryO
 		return nil, err
 	}
 
+	return parseQueryResults(options, results)
+}
+
+// parseQueryResults assembles def.Series from a flux query result.
+//
+// It is split out of Query so the series-assembly logic can be tested without a
+// live InfluxDB: feed it an *api.QueryTableResult built from the CSV annotations
+// InfluxDB emits for `group(columns: ["_field"]) |> aggregateWindow(...)`. The
+// series key and Columns derive from record.Field(); when the response carries a
+// `_field` column (guaranteed by the group-by-_field query), the series name is
+// the real field name (e.g. "usage"), never the "default_count" fallback.
+func parseQueryResults(options *def.TsdbQueryOptions, results *api.QueryTableResult) ([]*def.Series, error) {
 	var (
 		series = make(map[string]*def.Series)
 		res    []*def.Series
@@ -183,13 +195,13 @@ func (d *influxdbClient) Query(ctx context.Context, opts ...func(*def.TsdbQueryO
 	for results.Next() {
 		record := results.Record()
 
-		keys := make([]string, 0, len(options.Groups)*len(options.Fields))
+		keys := make([]string, 0, len(options.Groups)+1)
 		for _, group := range options.Groups {
 			keys = append(keys, cast.ToString(record.Values()[group]))
 		}
 
 		field := record.Field()
-		if len(record.Field()) == 0 {
+		if field == "" {
 			field = "default_count"
 		}
 
@@ -217,7 +229,7 @@ func (d *influxdbClient) Query(ctx context.Context, opts ...func(*def.TsdbQueryO
 			fmt.Println(record)
 		}
 	}
-	if err = results.Err(); err != nil {
+	if err := results.Err(); err != nil {
 		return nil, err
 	}
 
