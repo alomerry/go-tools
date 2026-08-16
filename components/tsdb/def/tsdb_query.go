@@ -83,6 +83,10 @@ func (t *TsdbQueryOptions) validate() error {
 	return nil
 }
 
+// getTimeRange returns the Flux range literals for start and stop.
+// Explicit times are converted to UTC and rendered unquoted with a Z suffix
+// (e.g. 2026-08-16T03:34:27Z); Flux keywords now() and relative durations
+// like -1m stay as-is.
 func (t *TsdbQueryOptions) getTimeRange() (string, string) {
 	var (
 		start, end string
@@ -90,13 +94,13 @@ func (t *TsdbQueryOptions) getTimeRange() (string, string) {
 	if t.End == nil {
 		end = "now()"
 	} else {
-		end = t.End.Format(time.RFC3339)
+		end = t.End.UTC().Format(time.RFC3339) // 产出 2026-08-16T03:34:27Z
 	}
 
 	if t.Start == nil {
 		start = "-1m"
 	} else {
-		start = t.Start.Format(time.RFC3339)
+		start = t.Start.UTC().Format(time.RFC3339) // 产出 2026-08-15T03:34:27Z
 	}
 
 	return start, end
@@ -106,7 +110,7 @@ func (t *TsdbQueryOptions) getInterval() string {
 	if t.Interval != "" {
 		return t.Interval
 	}
-	
+
 	if t.Start != nil && t.End != nil {
 		duration := t.End.Sub(*t.Start)
 		switch {
@@ -118,7 +122,7 @@ func (t *TsdbQueryOptions) getInterval() string {
 			return "1m"
 		}
 	}
-	
+
 	return "5s"
 }
 

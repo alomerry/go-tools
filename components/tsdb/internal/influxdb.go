@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/alomerry/go-tools/components/tsdb/def"
-  "github.com/alomerry/go-tools/static/env"
-  "github.com/alomerry/go-tools/static/errors/tsdb"
+	"github.com/alomerry/go-tools/static/env"
+	"github.com/alomerry/go-tools/static/errors/tsdb"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/sirupsen/logrus"
@@ -190,7 +190,7 @@ func (d *influxdbClient) Query(ctx context.Context, opts ...func(*def.TsdbQueryO
 
 		field := record.Field()
 		if len(record.Field()) == 0 {
-			field = "deafult_count"
+			field = "default_count"
 		}
 
 		keys = append(keys, field)
@@ -213,9 +213,9 @@ func (d *influxdbClient) Query(ctx context.Context, opts ...func(*def.TsdbQueryO
 		}
 
 		series[key].Values = append(series[key].Values, item)
-    if env.Local() {
-      fmt.Println(record)
-    }
+		if env.Local() {
+			fmt.Println(record)
+		}
 	}
 	if err = results.Err(); err != nil {
 		return nil, err
