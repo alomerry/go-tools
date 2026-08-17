@@ -1,5 +1,10 @@
 # 更新日志
 
+- **[2026-08-17] fix(notify): Kook 通知时间固定 UTC+8 显示（ip-ban-auto-window，v0.2.8）**。feature/ip-ban-auto-window。`components/notify/drivers/kook/kook.go` 卡片 context 时间行原为 `time.Now().Format("2006-01-02 15:04:05")`——无 TZ 容器（scratch/busybox 无 `/etc/localtime`，`time.Local` 回退 UTC）下显示 UTC 时间，比用户期望的北京时间差 8 小时。改为 `time.Now().In(time.FixedZone("CST", 8*3600)).Format(time2.Readable)` 固定东八区显示。
+  - **改动文件**：`components/notify/drivers/kook/kook.go`（时间行固定 UTC+8；复用 `utils/time.Readable` 格式常量，新增 `time2 "github.com/alomerry/go-tools/utils/time"` import）。
+  - **取舍**：用 `time.FixedZone("CST", 8*3600)` 而非 `utils/time.DefaultTimeZone`（其依赖 `time.LoadLocation("Asia/Shanghai")`，无 tzdata 时返回 nil，正是本修复要绕开的坑）；中国无夏令时，固定 +08:00 即精确。与 v0.2.7「homelab 侧 `_ "time/tzdata"` 根治时刻解析回退 UTC」不重叠：彼处解决「输入时刻解析」、此处是「展示层固定显示」，通知组件保持自包含不依赖 tzdata。
+  - **验证**：`go build ./components/notify/...` / `go vet ./components/notify/...` / `go test ./components/notify/...` 通过。
+
 - **[2026-08-16] fix(tsdb): Flux 查询规则修正（fix-metric-tzdata，v0.2.7）**。feature/fix-metric-tzdata。真实根因（容器无 tzdata 导致 `time.LoadLocation("Asia/Shanghai")` 失败返回 nil、用户输入被回退解析为 UTC → 查询窗口偏移 +8h）由 **homelab-backend** 根治：全部 7 个服务 import `_ "time/tzdata"` 内置 zoneinfo，真实 tzdata 下 `DefaultTimeZone` 不再为 nil。go-tools **不引入 FixedZone 兜底**（与 homelab 修复重叠，且固定 +08:00 偏移不如真实 zoneinfo 彻底），本版本仅含 Flux 查询规则修正与微优化：
   - **`components/tsdb/def/tsdb_query.go`**：① 无 tag 分组时 `group(columns: [])` → `group(columns: ["_field"])`，保留字段身份 → `record.Field()` 不再为空 → series 名恢复为真实字段名（非空 case 已含 `_field`，规则统一）；② `aggregateWindow(every: %s, fn: mean)` → 追加 `createEmpty: false`，避免空窗口 null 行。
   - **`components/tsdb/internal/influxdb.go`**：微优化 `field := record.Field(); if field == ""`；`keys` 预分配容量 `len(options.Groups)*len(options.Fields)` → `len(options.Groups)+1`（keys 实际为 groups + field）；series 组装循环提取为可独立测试的 `parseQueryResults(options, results)`，`Query` 仅做查询构造后委托（行为零变更）。

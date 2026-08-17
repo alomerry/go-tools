@@ -12,6 +12,7 @@ import (
 	"github.com/alomerry/go-tools/components/notify"
 	notify2 "github.com/alomerry/go-tools/static/cons/notify"
 	strutil "github.com/alomerry/go-tools/utils/string"
+	time2 "github.com/alomerry/go-tools/utils/time"
 	"github.com/sirupsen/logrus"
 )
 
@@ -73,7 +74,11 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 	escTitle := strutil.EscapeKMarkdown(title)
 	escContent := strutil.EscapeKMarkdown(msg.Content)
 
-	now := time.Now().Format("2006-01-02 15:04:05")
+	// Render the timestamp in fixed UTC+8: scratch/busybox images have no
+	// zoneinfo, so time.Local falls back to UTC and a bare Format would show a
+	// time 8 hours off. Asia/Shanghai has no DST, so FixedZone(+08:00) is exact
+	// and avoids the tzdata dependency of utils/time.DefaultTimeZone.
+	now := time.Now().In(time.FixedZone("CST", 8*3600)).Format(time2.Readable)
 
 	builder := model2.NewCardBuilder().
 		Theme(theme).
