@@ -12,7 +12,7 @@ import (
 	"github.com/alomerry/go-tools/components/notify"
 	notify2 "github.com/alomerry/go-tools/static/cons/notify"
 	strutil "github.com/alomerry/go-tools/utils/string"
-	"github.com/sirupsen/logrus"
+	"github.com/alomerry/go-tools/components/log"
 )
 
 func init() {
@@ -44,7 +44,7 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 	}
 
 	if cfg.Token == "" {
-		logrus.Warn("kook token is empty, skip sending")
+		log.Warn(ctx, "kook token is empty, skip sending")
 		return nil
 	}
 
@@ -103,7 +103,7 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 
 	card := model2.NewCardMessageBuilder().AddCard(builder.Build()).Build()
 
-	logrus.Infof("kook notify card: %s", card)
+	log.Infof(ctx, "kook notify card: %s", card)
 
 	// 获取 targetId
 	group := "info"
@@ -112,7 +112,7 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 	}
 	targetId := cfg.GetGroupChannel(group)
 	if targetId == "" {
-		logrus.Warnf("target id not found for group: %s", group)
+		log.Warnf(ctx, "target id not found for group: %s", group)
 		// 如果没有找到 targetId，这里会报错，但我们还是尝试发一下，或者直接返回错误
 	}
 
