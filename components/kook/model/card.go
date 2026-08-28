@@ -95,11 +95,11 @@ type ElementText struct {
 }
 
 type ElementImage struct {
-	Type     ElementType `json:"type"`
-	Src      string      `json:"src"`
-	Alt      string      `json:"alt,omitempty"`
-	Size     string      `json:"size,omitempty"` // sm, lg
-	Circle   bool        `json:"circle,omitempty"`
+	Type   ElementType `json:"type"`
+	Src    string      `json:"src"`
+	Alt    string      `json:"alt,omitempty"`
+	Size   string      `json:"size,omitempty"` // sm, lg
+	Circle bool        `json:"circle,omitempty"`
 }
 
 type ElementButton struct {
@@ -108,4 +108,20 @@ type ElementButton struct {
 	Value string      `json:"value"`
 	Click string      `json:"click,omitempty"` // link, return-val
 	Text  ElementText `json:"text"`
+}
+
+// ElementParagraph is the Kook paragraph structure element. It lays out its
+// Fields into a multi-column grid with at most Cols columns (Kook enforces a
+// hard cap of 3). It is meant to be embedded as a section module's Text value
+// (type="section", text={type:"paragraph", cols, fields}) to render a
+// table-like layout, e.g. an aggregated IP ban summary.
+//
+// Unlike a plain ElementText, the Fields of a paragraph are kmarkdown text
+// elements rendered verbatim (the caller is responsible for escaping each
+// field's content), so a paragraph can carry bold headers and multi-field rows
+// without the driver re-escaping the whole content.
+type ElementParagraph struct {
+	Type   ElementType   `json:"type"` // "paragraph"
+	Cols   int           `json:"cols"`
+	Fields []ElementText `json:"fields"`
 }
