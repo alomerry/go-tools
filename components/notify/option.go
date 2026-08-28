@@ -62,3 +62,15 @@ func WithButtons(buttons []Button) Option {
 		msg.Buttons = buttons
 	})
 }
+
+// WithRawSections sets pre-rendered kmarkdown sections carried verbatim on the
+// message. A driver that supports raw sections renders them instead of the
+// escaped Subject/Content block, giving the caller full control over the
+// kmarkdown layout (e.g. a paragraph table with a bold header and individually
+// escaped cells). The section content is the caller's responsibility to
+// escape; the driver must NOT re-escape it. See RawSection for details.
+func WithRawSections(sections []RawSection) Option {
+	return OptionFunc(func(msg *Message) {
+		msg.RawSections = sections
+	})
+}
