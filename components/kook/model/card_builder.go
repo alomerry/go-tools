@@ -61,6 +61,34 @@ func (b *CardBuilder) AddSectionKmarkdown(text string) *CardBuilder {
 	return b
 }
 
+// AddParagraph appends a section module whose text is a paragraph structure
+// element, laying fields out into a cols-column grid. It simulates a table:
+// pass cols=3 with header row + data rows (each field a kmarkdown ElementText)
+// to render a multi-column summary. Kook caps cols at 3, so cols is clamped to
+// [1, 3].
+//
+// The fields are kmarkdown elements rendered verbatim — the caller must escape
+// each field's content beforehand (EscapeKMarkdown). This is intentional so a
+// caller can mix bold headers ("**IP**") and escaped data cells in the same
+// grid without the driver re-escaping the whole block.
+func (b *CardBuilder) AddParagraph(cols int, fields []ElementText) *CardBuilder {
+	if cols < 1 {
+		cols = 1
+	}
+	if cols > 3 {
+		cols = 3
+	}
+	b.modules = append(b.modules, ModuleSection{
+		Type: ModuleTypeSection,
+		Text: ElementParagraph{
+			Type:   ElementTypeParagraph,
+			Cols:   cols,
+			Fields: fields,
+		},
+	})
+	return b
+}
+
 func (b *CardBuilder) AddSectionText(text string) *CardBuilder {
 	b.modules = append(b.modules, ModuleSection{
 		Type: ModuleTypeSection,
