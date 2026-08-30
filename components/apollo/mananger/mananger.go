@@ -34,49 +34,53 @@ type apolloCfgManager struct {
   mysqlInitOnce    sync.Once
   redisInitOnce    sync.Once
   
-  barkConfig     *apollo2.BarkConfig
-  influxDBConfig *apollo2.InfluxDbConfig
-  gitCfg         *apollo2.GitConfig
-  kafkaConfig    *apollo2.KafkaConfig
-  kookConfig     *apollo2.KookConfig
-  mysqlConfig    *apollo2.MysqlConfig
-  redisConfig    *apollo2.RedisConfig
+  barkDynamic     *apollo.Dynamic[apollo2.BarkConfig]
+  influxDBDynamic *apollo.Dynamic[apollo2.InfluxDbConfig]
+  gitDynamic      *apollo.Dynamic[apollo2.GitConfig]
+  kafkaDynamic    *apollo.Dynamic[apollo2.KafkaConfig]
+  kookDynamic     *apollo.Dynamic[apollo2.KookConfig]
+  mysqlDynamic    *apollo.Dynamic[apollo2.MysqlConfig]
+  redisDynamic    *apollo.Dynamic[apollo2.RedisConfig]
   
-  ossConfig *model.Config
-  ossOnce   sync.Once
+  ossDynamic *apollo.Dynamic[model.Config]
+  ossOnce    sync.Once
 }
 
 func (a *apolloCfgManager) GetBarkCfg() *apollo2.BarkConfig {
   a.barkOnce.Do(func() {
-    a.barkConfig = &apollo2.BarkConfig{}
-    err := apollo.GetJson(apollo3.BarkConfig, a.barkConfig)
+    d, err := apollo.GetJson[apollo2.BarkConfig](apollo3.BarkConfig)
     if err != nil {
       logrus.Errorf("get bark config failed: %v", err)
+      return
     }
+    a.barkDynamic = d
   })
-  return a.barkConfig
+  if a.barkDynamic == nil {
+    return nil
+  }
+  return a.barkDynamic.Load()
 }
 
 func (a *apolloCfgManager) GetMysqlConfig() *apollo2.MysqlConfig {
   a.mysqlInitOnce.Do(func() {
-    a.mysqlConfig = &apollo2.MysqlConfig{}
-    err := apollo.GetJson(apollo3.MysqlConfig, a.mysqlConfig)
+    d, err := apollo.GetJson[apollo2.MysqlConfig](apollo3.MysqlConfig)
     if err != nil {
       logrus.Panic(err)
     }
+    a.mysqlDynamic = d
   })
-  return a.mysqlConfig
+  return a.mysqlDynamic.Load()
 }
 
 func (a *apolloCfgManager) GitCfg() *apollo2.GitConfig {
   a.gitCfgOnce.Do(func() {
-    a.gitCfg = &apollo2.GitConfig{}
-    err := apollo.GetJson(apollo3.GitConfig, a.gitCfg)
+    d, err := apollo.GetJson[apollo2.GitConfig](apollo3.GitConfig)
     if err != nil {
       logrus.Panic(err)
     }
+    a.gitDynamic = d
   })
-  return a.gitCfg
+  return a.gitDynamic.Load()
 }
 
 func (a *apolloCfgManager) GitToken(provider string) string {
@@ -89,24 +93,24 @@ func (a *apolloCfgManager) GitToken(provider string) string {
 
 func (a *apolloCfgManager) GetRedisConfig() *apollo2.RedisConfig {
   a.redisInitOnce.Do(func() {
-    a.redisConfig = &apollo2.RedisConfig{}
-    err := apollo.GetJson(apollo3.RedisConfig, a.redisConfig)
+    d, err := apollo.GetJson[apollo2.RedisConfig](apollo3.RedisConfig)
     if err != nil {
       logrus.Panic(err)
     }
+    a.redisDynamic = d
   })
-  return a.redisConfig
+  return a.redisDynamic.Load()
 }
 
 func (a *apolloCfgManager) InfluxDbConfig() *apollo2.InfluxDbConfig {
   a.influxDBInitOnce.Do(func() {
-    a.influxDBConfig = &apollo2.InfluxDbConfig{}
-    err := apollo.GetJson(apollo3.InfluxdbConfig, a.influxDBConfig)
+    d, err := apollo.GetJson[apollo2.InfluxDbConfig](apollo3.InfluxdbConfig)
     if err != nil {
       logrus.Panicf("init influx-db config failed: %v", err)
     }
+    a.influxDBDynamic = d
   })
-  return a.influxDBConfig
+  return a.influxDBDynamic.Load()
 }
 
 func (a *apolloCfgManager) InfluxOrg() string {
@@ -123,13 +127,17 @@ func (a *apolloCfgManager) KookCfg() *apollo2.KookConfig {
         logrus.Errorf("recover from panic: %v", r)
       }
     }()
-    a.kookConfig = &apollo2.KookConfig{}
-    err := apollo.GetJson(apollo3.KookConfig, a.kookConfig)
+    d, err := apollo.GetJson[apollo2.KookConfig](apollo3.KookConfig)
     if err != nil {
       logrus.Errorf("get kook config failed: %v", err)
+      return
     }
+    a.kookDynamic = d
   })
-  return a.kookConfig
+  if a.kookDynamic == nil {
+    return nil
+  }
+  return a.kookDynamic.Load()
 }
 
 func (a *apolloCfgManager) InfluxToken() string {
@@ -148,24 +156,23 @@ func (a *apolloCfgManager) InfluxEndpoint() string {
 
 func (a *apolloCfgManager) KafkaCfg() *apollo2.KafkaConfig {
   a.kafkaInitOnce.Do(func() {
-    a.kafkaConfig = &apollo2.KafkaConfig{}
-    err := apollo.GetJson(apollo3.KafkaConfig, a.kafkaConfig)
+    d, err := apollo.GetJson[apollo2.KafkaConfig](apollo3.KafkaConfig)
     if err != nil {
       logrus.Panic(err)
     }
+    a.kafkaDynamic = d
   })
-  return a.kafkaConfig
+  return a.kafkaDynamic.Load()
 }
 
 func (a *apolloCfgManager) RustFs() *model.Config {
   a.ossOnce.Do(func() {
-    a.ossConfig = &model.Config{}
-    err := apollo.GetJson(apollo3.RustFsConfig, &a.ossConfig)
+    d, err := apollo.GetJson[model.Config](apollo3.RustFsConfig)
     if err != nil {
       logrus.Panic(err)
     }
+    a.ossDynamic = d
   })
-  
-  return a.ossConfig
+  return a.ossDynamic.Load()
 }
 

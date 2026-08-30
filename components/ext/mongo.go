@@ -48,18 +48,17 @@ type MongoExtConfig struct {
 
 func NewMongoExt() Ext {
 	mongOnce.Do(func() {
-		MgoExt = &MongoExt{
-			cfg: &MongoExtConfig{},
-		}
+		MgoExt = &MongoExt{}
 	})
 	return MgoExt
 }
 
 func (m *MongoExt) Init(ctx context.Context) error {
-	err := apollo.GetJson(apollo2.ApolloKeyMongoCfg, m.cfg)
+	d, err := apollo.GetJson[MongoExtConfig](apollo2.ApolloKeyMongoCfg)
 	if err != nil {
 		log.Panicf("init mongodb failed %v", err.Error())
 	}
+	m.cfg = d.Load()
 	m.cli, err = mongo.NewMongoClient(ctx, env.GetMongoDSN(m.cfg.Uri))
 	if err != nil {
 		log.Panicf("create mongodb client failed %v", err.Error())
