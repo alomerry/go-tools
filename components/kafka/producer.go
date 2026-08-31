@@ -61,3 +61,11 @@ func NewDefaultProducer(ctx context.Context, opts ...Option) (*Producer, error) 
 func (p *Producer) Write(ctx context.Context, msg ...kafka.Message) error {
 	return p.writer.WriteMessages(ctx, msg...)
 }
+
+// Close 关闭底层 kafka.Writer，释放连接资源
+func (p *Producer) Close() error {
+	if p.writer == nil {
+		return nil
+	}
+	return p.writer.Close()
+}
