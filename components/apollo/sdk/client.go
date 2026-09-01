@@ -79,11 +79,23 @@ func (c *Client) Do(ctx context.Context, method, path string, body interface{}, 
 	}
 
 	if resp.IsError() {
-		if apiErr, ok := resp.Error().(*ErrorResponse); ok && apiErr.Message != "" {
-			apiErr.Status = resp.StatusCode()
-			return resp, apiErr
+		// Always return a *ErrorResponse for any HTTP error status so callers
+		// can reliably identify the status code (e.g. 403 vs 400) via
+		// errors.As. This matters because downstream layers (e.g. the publish
+		// flow) branch on the status code to map Apollo permission errors to
+		// the correct HTTP response; a plain fmt.Errorf here would break that
+		// type assertion and surface as a 500 instead of a 403.
+		apiErr, _ := resp.Error().(*ErrorResponse)
+		if apiErr == nil {
+			apiErr = &ErrorResponse{}
 		}
-		return resp, fmt.Errorf("api error: %s, body: %s", resp.Status(), string(resp.Body()))
+		apiErr.Status = resp.StatusCode()
+		// If Apollo returned no parseable error fields at all, fall back to the
+		// raw response body so the error is never empty.
+		if apiErr.Message == "" && apiErr.Exception == "" {
+			apiErr.Message = fmt.Sprintf("%s, body: %s", resp.Status(), string(resp.Body()))
+		}
+		return resp, apiErr
 	}
 
 	return resp, nil

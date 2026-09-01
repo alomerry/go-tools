@@ -15,6 +15,29 @@ type Button struct {
 	Value string `json:"value"`
 }
 
+// RawSection is a pre-rendered kmarkdown section carried verbatim on a
+// notify.Message. It lets a caller bypass the driver's whole-content
+// EscapeKMarkdown for messages that need fine-grained control over their
+// kmarkdown (e.g. an aggregated multi-column table whose header is bold and
+// whose cells are individually escaped).
+//
+// When Cols > 0 the driver renders the section as a paragraph structure
+// element (a cols-column grid of Fields); Cols 1..3 renders a paragraph grid.
+// The Fields values are the CALLER's responsibility to escape — the driver
+// must NOT re-escape them.
+//
+// Currently only the Kook driver renders RawSections; other drivers fall back
+// to Subject/Content.
+type RawSection struct {
+	// Cols is the column count for a paragraph section. 1..3 renders a
+	// paragraph grid.
+	Cols int `json:"cols,omitempty"`
+	// Fields are the kmarkdown cell contents of a paragraph section, one entry
+	// per cell (the CALLER must escape each value). The cells are laid out
+	// left-to-right, wrapping into rows of Cols.
+	Fields []string `json:"fields,omitempty"`
+}
+
 // Message 定义了通知消息的结构
 type Message struct {
 	Subject     string                 `json:"subject"`
@@ -22,6 +45,14 @@ type Message struct {
 	Attachments []string               `json:"attachments"`
 	Extra       map[string]interface{} `json:"extra"`
 	Buttons     []Button               `json:"buttons,omitempty"`
+	// RawSections carries pre-rendered kmarkdown sections that the driver must
+	// emit verbatim (no whole-content EscapeKMarkdown). When non-empty, a driver
+	// that supports raw sections renders them instead of the escaped
+	// Subject/Content pair, giving the caller full control over the kmarkdown
+	// layout (e.g. a paragraph table). Drivers without raw-section support fall
+	// back to the escaped Subject/Content path. The Subject is still used as the
+	// card title/header.
+	RawSections []RawSection `json:"rawSections,omitempty"`
 }
 
 // Notifier 是通知驱动必须实现的接口

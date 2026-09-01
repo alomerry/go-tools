@@ -8,7 +8,6 @@ import (
   "strings"
   "sync"
   
-  "github.com/alomerry/go-tools/static/cons"
   "github.com/alomerry/go-tools/static/env"
   "github.com/apolloconfig/agollo/v4"
   "github.com/apolloconfig/agollo/v4/env/config"
@@ -58,27 +57,55 @@ func Get(name string) (any, error) {
   return value, err
 }
 
-func GetJson[T any](name string, dist *T) error {
+// GetJson loads a JSON config struct from the apollo cache and returns a
+// Dynamic[T] snapshot handle. The caller holds the handle and calls Load() to
+// read the current config — the returned *T is an immutable snapshot, so
+// reading its fields is always race-free.
+//
+// When the key name carries the ",dynamic" suffix, GetJson also registers an
+// OnChange callback that parses the new value into a fresh *T and Stores it
+// atomically; subsequent Load() calls return the updated snapshot. A key
+// without the suffix is loaded once and never hot-reloaded (the handle is
+// still valid; Load always returns the initial snapshot).
+//
+// On a parse failure during OnChange the old snapshot is retained (fail-open
+// to the last-known-good value). The initial load failure is returned as err;
+// the caller decides whether to panic or degrade (Dynamic.Load will return nil
+// until a successful fill).
+func GetJson[T any](name string) (*Dynamic[T], error) {
 	cache := client.GetConfigCache(env.ApolloNamespace())
-  value, err := cache.Get(strings.TrimSuffix(toKey(client.clientId, name), ",dynamic"))
+	value, err := cache.Get(strings.TrimSuffix(toKey(client.clientId, name), ",dynamic"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	switch value.(type) {
+	d := &Dynamic[T]{}
+	t := new(T)
+
+	switch v := value.(type) {
 	case string:
-		err = json.Unmarshal([]byte(value.(string)), dist)
+		if err := json.Unmarshal([]byte(v), t); err != nil {
+			return nil, err
+		}
 	default:
-    log.Panicf("unsupported type %v", reflect.TypeOf(value))
-  }
-  
-  if err != nil {
-    return err
-  }
-  
-  _ = listener.TryWatchKey(name, cons.ApolloValTypeJson, dist)
-  
-  return nil
+		log.Panicf("unsupported type %v", reflect.TypeOf(value))
+	}
+
+	d.Store(t)
+
+	// Only ",dynamic" keys register an OnChange callback that hot-reloads the
+	// config. Non-dynamic keys (mysql/redis/mongo/kafka...) keep the initial
+	// snapshot for the process lifetime.
+	listener.TryWatchKey(name, func(newVal string) {
+		nt := new(T)
+		if err := json.Unmarshal([]byte(newVal), nt); err != nil {
+			// Parse failure: keep the old snapshot (fail-open to last-known-good).
+			return
+		}
+		d.Store(nt)
+	})
+
+	return d, nil
 }
 
 func toKey(clientId string, key string) string {

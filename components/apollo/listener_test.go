@@ -13,10 +13,7 @@ import (
 func TestListener(t *testing.T) {
   Init("colona", "colona")
 
-	var (
-		val value
-	)
-	err := GetJson[value]("colona.meta,dynamic", &val)
+	d, err := GetJson[value]("colona.meta,dynamic")
 	assert.Nil(t, err)
 
 	sigChan := make(chan os.Signal, 1)
@@ -28,7 +25,9 @@ func TestListener(t *testing.T) {
 		for {
 			select {
 			case <-tick.C:
-				logrus.Info(val.Test)
+				if v := d.Load(); v != nil {
+					logrus.Info(v.Test)
+				}
 			}
 		}
 	}()

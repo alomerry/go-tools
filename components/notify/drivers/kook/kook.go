@@ -9,10 +9,10 @@ import (
 	"github.com/alomerry/go-tools/components/ext"
 	"github.com/alomerry/go-tools/components/kook/client"
 	model2 "github.com/alomerry/go-tools/components/kook/model"
+	"github.com/alomerry/go-tools/components/log"
 	"github.com/alomerry/go-tools/components/notify"
 	notify2 "github.com/alomerry/go-tools/static/cons/notify"
 	strutil "github.com/alomerry/go-tools/utils/string"
-	"github.com/sirupsen/logrus"
 )
 
 func init() {
@@ -44,7 +44,7 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 	}
 
 	if cfg.Token == "" {
-		logrus.Warn("kook token is empty, skip sending")
+		log.Warn(ctx, "kook token is empty, skip sending")
 		return nil
 	}
 
@@ -71,14 +71,38 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 		title = "系统通知"
 	}
 	escTitle := strutil.EscapeKMarkdown(title)
-	escContent := strutil.EscapeKMarkdown(msg.Content)
 
 	now := time.Now().Format("2006-01-02 15:04:05")
 
-	builder := model2.NewCardBuilder().
-		Theme(theme).
-		AddSectionKmarkdown(fmt.Sprintf("%s\n%s", escTitle, escContent)).
-		AddContextKmarkdown(now)
+	builder := model2.NewCardBuilder().Theme(theme)
+
+	// Raw sections let a caller bypass the whole-content EscapeKMarkdown for
+	// messages needing fine-grained kmarkdown control (e.g. an aggregated
+	// multi-column paragraph table). When present, render them verbatim — the
+	// caller is responsible for escaping each field — instead of the escaped
+	// Subject/Content block. The title is still escaped above and used as the
+	// header. Drivers without raw-section support (or an empty slice) fall back
+	// to the escaped Subject/Content path below.
+	if len(msg.RawSections) > 0 {
+		builder.AddHeader(escTitle)
+		for _, rs := range msg.RawSections {
+			if rs.Cols > 0 {
+				fields := make([]model2.ElementText, 0, len(rs.Fields))
+				for _, f := range rs.Fields {
+					fields = append(fields, model2.ElementText{
+						Type:    model2.ElementTypeKMarkdown,
+						Content: f,
+					})
+				}
+				builder.AddParagraph(rs.Cols, fields)
+			}
+		}
+		builder.AddContextKmarkdown(now)
+	} else {
+		escContent := strutil.EscapeKMarkdown(msg.Content)
+		builder.AddSectionKmarkdown(fmt.Sprintf("%s\n%s", escTitle, escContent)).
+			AddContextKmarkdown(now)
+	}
 
 	if len(msg.Buttons) > 0 {
 		buttons := make([]model2.ElementButton, 0, len(msg.Buttons))
@@ -103,7 +127,7 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 
 	card := model2.NewCardMessageBuilder().AddCard(builder.Build()).Build()
 
-	logrus.Infof("kook notify card: %s", card)
+	log.Infof(ctx, "kook notify card: %s", card)
 
 	// 获取 targetId
 	group := "info"
@@ -112,7 +136,7 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 	}
 	targetId := cfg.GetGroupChannel(group)
 	if targetId == "" {
-		logrus.Warnf("target id not found for group: %s", group)
+		log.Warnf(ctx, "target id not found for group: %s", group)
 		// 如果没有找到 targetId，这里会报错，但我们还是尝试发一下，或者直接返回错误
 	}
 

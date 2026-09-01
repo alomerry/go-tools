@@ -1,6 +1,7 @@
 package ext
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -146,16 +147,31 @@ func (s *MongoExtSuite) TestFindPageWithSort() {
 	assert.Len(s.T(), desc, 3)
 	var gotDesc []int32
 	for _, d := range desc {
-		gotDesc = append(gotDesc, d["seq"].(int32))
+		seq, ok := d["seq"].(int32)
+		if assert.True(s.T(), ok, "seq should decode as int32, got %T", d["seq"]) {
+			gotDesc = append(gotDesc, seq)
+		}
 	}
 	assert.Equal(s.T(), []int32{3, 2, 1}, gotDesc)
 
-	// 空 sort 缺省 _id 升序：仅验证返回全集与总数，与 FindPage 行为对齐。
+	// 空 sort 缺省 _id 升序：除返回全集与总数外，还断言记录确实按 _id
+	// 升序排列，守护缺省排序语义。
 	var asc []bson.M
 	total, err = s.ext.FindPageWithSort(ctx, s.collection, bson.M{"tag": tag}, &asc, 1, 10, nil)
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), int64(3), total)
 	assert.Len(s.T(), asc, 3)
+	gotIDs := make([]bson.ObjectID, 0, len(asc))
+	for _, d := range asc {
+		id, ok := d["_id"].(bson.ObjectID)
+		if assert.True(s.T(), ok, "_id should decode as ObjectID, got %T", d["_id"]) {
+			gotIDs = append(gotIDs, id)
+		}
+	}
+	for i := 1; i < len(gotIDs); i++ {
+		assert.True(s.T(), bytes.Compare(gotIDs[i-1][:], gotIDs[i][:]) < 0,
+			"records should be _id ascending: %v before %v", gotIDs[i-1], gotIDs[i])
+	}
 
 	// FindPage 保持原签名并委托给缺省排序。
 	var viaFindPage []bson.M
@@ -163,4 +179,49 @@ func (s *MongoExtSuite) TestFindPageWithSort() {
 	assert.NoError(s.T(), err)
 	assert.Equal(s.T(), int64(3), total)
 	assert.Len(s.T(), viaFindPage, 3)
+}
+
+// TestFindPageClamp 固化 page/limit 非正数时的钳制行为：page<1 → 1、
+// limit<1 → 10（缺省页大小），避免负数/零值产生非法 skip/limit 传给 mongo。
+func (s *MongoExtSuite) TestFindPageClamp() {
+	ctx := context.Background()
+	tag := "clamp-test"
+
+	for i := 0; i < 12; i++ {
+		assert.NoError(s.T(), s.ext.Insert(ctx, s.collection, bson.M{
+			"_id": bson.NewObjectID(),
+			"tag": tag,
+			"seq": i,
+		}))
+	}
+
+	// 提取各文档的 seq（带 ok 的安全断言），用于比较页内容。
+	seqsOf := func(docs []bson.M) []int32 {
+		out := make([]int32, 0, len(docs))
+		for _, d := range docs {
+			v, ok := d["seq"].(int32)
+			if assert.True(s.T(), ok, "seq should decode as int32, got %T", d["seq"]) {
+				out = append(out, v)
+			}
+		}
+		return out
+	}
+
+	// limit:-5 钳制为缺省页大小 10：12 条匹配只返回前 10 条。
+	var clamped []bson.M
+	total, err := s.ext.FindPageWithSort(ctx, s.collection, bson.M{"tag": tag}, &clamped, 0, -5, nil)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), int64(12), total)
+	assert.Len(s.T(), clamped, 10, "limit<1 should be clamped to default page size 10")
+	assert.Equal(s.T(), []int32{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, seqsOf(clamped))
+
+	// page:0 钳制为 1：与显式 page=1 的同 limit 结果一致。
+	var clampedPage []bson.M
+	_, err = s.ext.FindPage(ctx, s.collection, bson.M{"tag": tag}, &clampedPage, 0, 5)
+	assert.NoError(s.T(), err)
+	var explicitPage []bson.M
+	_, err = s.ext.FindPage(ctx, s.collection, bson.M{"tag": tag}, &explicitPage, 1, 5)
+	assert.NoError(s.T(), err)
+	assert.Equal(s.T(), seqsOf(explicitPage), seqsOf(clampedPage))
+	assert.Equal(s.T(), []int32{0, 1, 2, 3, 4}, seqsOf(clampedPage))
 }
