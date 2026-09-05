@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alomerry/go-tools/components/ext"
@@ -72,7 +73,8 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 	}
 	escTitle := strutil.EscapeKMarkdown(title)
 
-	now := time.Now().Format("2006-01-02 15:04:05")
+	// 格式 "MST" 在 zone name 为空时由标准库自动回退为数字偏移量（如 +0800）
+	now := time.Now().In(cfgLocation(ctx, cfg.Timezone)).Format("2006-01-02 15:04:05 MST")
 
 	builder := model2.NewCardBuilder().Theme(theme)
 
@@ -155,4 +157,32 @@ func (n *Notifier) Send(ctx context.Context, msg *notify.Message) error {
 
 func (n *Notifier) Close() error {
 	return nil
+}
+
+// warnedInvalidTimezones 记录已告警过的非法时区值，同一非法值仅告警一次。
+// 配置热更新下用户可能改出新非法值，按值去重而非 sync.Once，保证新值仍会告警。
+var (
+	warnedInvalidTimezonesMu sync.Mutex
+	warnedInvalidTimezones   = map[string]struct{}{}
+)
+
+// cfgLocation 解析 Kook 配置中的 IANA 时区名（如 "Asia/Shanghai"）。
+// 未配置时返回服务器本地时区（行为与未引入该配置前一致）；
+// 非法值记录 Warn 后回退本地时区，不阻断通知发送（同一非法值仅告警一次，避免热更新下每次 Send 刷屏）。
+func cfgLocation(ctx context.Context, tz string) *time.Location {
+	if tz == "" {
+		return time.Local
+	}
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		warnedInvalidTimezonesMu.Lock()
+		_, warned := warnedInvalidTimezones[tz]
+		warnedInvalidTimezones[tz] = struct{}{}
+		warnedInvalidTimezonesMu.Unlock()
+		if !warned {
+			log.Warnf(ctx, "kook invalid timezone %q, fallback to local: %v", tz, err)
+		}
+		return time.Local
+	}
+	return loc
 }
