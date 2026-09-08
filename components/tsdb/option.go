@@ -87,6 +87,23 @@ func WithFields(fields map[string]any) func(any) {
 	}
 }
 
+// WithFieldAny 显式将键值写入 Fields，绕过 string→Tags 的隐式映射，
+// 用于需要字符串类型 field 的场景（如 event.data / problem.message）。
+func WithFieldAny(k string, v any) func(any) {
+	return func(m any) {
+		switch m := m.(type) {
+		case *metric:
+			if len(k) == 0 || v == nil {
+				return
+			}
+			m.Fields[k] = v
+		case *meta:
+		default:
+			logrus.Errorf("not support option type: %T", m)
+		}
+	}
+}
+
 func withTagOrField(k string, v any) func(any) {
 	return func(m any) {
 		var m1 *metric

@@ -8,7 +8,7 @@ import (
 	"strings"
 	_ "unsafe"
 
-	"github.com/alomerry/cat-go/cat"
+	"github.com/alomerry/go-tools/components/cat"
 	"github.com/alomerry/go-tools/components/log"
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/static/env"
@@ -64,7 +64,7 @@ func (logHook) Fire(entry *logrus.Entry) error {
 	}
 
 	if entry.Level <= logrus.ErrorLevel {
-		cat.LogErrorWithCategoryBySkipTrace(entry.Context, errors.New(logSeparate+entry.Message), entry.Message, 9, extra...)
+		cat.LogError(entry.Context, errors.New(logSeparate+entry.Message), append([]string{entry.Message}, extra...)...)
 		return nil
 	}
 
