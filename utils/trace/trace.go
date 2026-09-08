@@ -3,11 +3,10 @@ package trace
 import (
 	"context"
 
-	"github.com/alomerry/cat-go/message"
+	"github.com/alomerry/go-tools/components/cat"
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/utils"
 	"github.com/rs/xid"
-	"github.com/spf13/cast"
 )
 
 func GetTraceId(ctx context.Context, defaultVal string) string {
@@ -17,7 +16,7 @@ func GetTraceId(ctx context.Context, defaultVal string) string {
 
 	tid := utils.FromCtx(ctx, cons.TraceIdKey)
 	if len(tid) == 0 {
-		tid = cast.ToString(ctx.Value(message.CtxKeyTransaction))
+		tid = cat.TraceIdFromCtx(ctx)
 	}
 
 	if len(tid) == 0 {

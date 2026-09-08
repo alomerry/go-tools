@@ -6,14 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alomerry/cat-go/message"
+	"github.com/alomerry/go-tools/components/cat"
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/utils"
 	time2 "github.com/alomerry/go-tools/utils/time"
 	"github.com/alomerry/go-tools/utils/trace"
 	"github.com/rs/xid"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/cast"
 )
 
 type customFormatter struct {
@@ -38,7 +37,7 @@ func (c *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	if entry.Context != nil {
 		traceId = utils.FromCtx(entry.Context, cons.TraceIdKey)
 		if len(traceId) == 0 {
-			traceId = cast.ToString(entry.Context.Value(message.CtxKeyTransaction))
+			traceId = cat.TraceIdFromCtx(entry.Context)
 		}
 	}
 

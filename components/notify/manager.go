@@ -5,7 +5,7 @@ import (
   "fmt"
 	"sync"
   
-  "github.com/alomerry/cat-go/cat"
+  "github.com/alomerry/go-tools/components/cat"
   "github.com/alomerry/go-tools/static/cons/notify"
 )
 

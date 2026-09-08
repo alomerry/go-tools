@@ -3,7 +3,7 @@ package resty
 import (
 	"time"
 
-	"github.com/alomerry/cat-go/cat"
+	"github.com/alomerry/go-tools/components/cat"
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/go-resty/resty/v2"
 )
@@ -31,15 +31,18 @@ func DefaultRequestMiddleware(client *resty.Client, req *resty.Request) error {
 }
 
 func DefaultResponseMiddleware(client *resty.Client, resp *resty.Response) error {
-	ctx := resp.Request.Context()
-
-	if resp.StatusCode() >= 400 {
-		cat.SetStatus(ctx, cat.ERROR)
-		cat.AddDataKV(ctx, "status", resp.Status())
-	} else {
-		cat.SetStatus(ctx, cat.SUCCESS)
+	tx := cat.TransactionFromCtx(resp.Request.Context())
+	if tx == nil {
+		return nil
 	}
 
-	cat.CompleteTransaction(ctx)
+	if resp.StatusCode() >= 400 {
+		tx.SetStatus(cat.ERROR)
+		tx.AddData("status", resp.Status())
+	} else {
+		tx.SetStatus(cat.SUCCESS)
+	}
+
+	tx.Complete()
 	return nil
 }
