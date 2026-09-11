@@ -14,11 +14,11 @@ const (
 	ERROR   = "error"
 )
 
-// 事务/问题点位类型，对齐 CAT 的事务类型命名。
+// 事务/问题点位类型，对齐 CAT 的事务类型命名。problem 点位的 type 为调用方
+// 包路径（见 problem.go），故此处仅保留事务类型。
 const (
 	transactionTypeHTTP = "URL"
 	transactionTypeRPC  = "RPC"
-	problemType         = "error"
 )
 
 var (

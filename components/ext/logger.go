@@ -16,17 +16,6 @@ import (
 	"github.com/spf13/cast"
 )
 
-// logSeparate is the separator prepended to error messages reported to cat.
-// Callers may override it via SetLogSeparate before LoadExt.
-var logSeparate = "·"
-
-// SetLogSeparate overrides the separator used when reporting errors to cat.
-func SetLogSeparate(s string) {
-	if s != "" {
-		logSeparate = s
-	}
-}
-
 func init() {
 	Register(cons.ExtLogger, NewLoggerExt)
 }
@@ -40,6 +29,11 @@ func NewLoggerExt() Ext {
 
 func (loggerExt) Init(_ context.Context) error {
 	logrus.SetFormatter(log.NewCustomFormatter())
+	// caller 解析契约：logrus 内建 ReportCaller 刻意关闭（避免 custom formatter
+	// 输出 caller 的格式抖动），entry.Caller 完全由 logHook.Fire 内 getCaller()
+	// 自行注入。依赖 entry.Caller 的路径（logHook problem 打点等）必须容忍其为
+	// nil（栈解析失败）并走兜底口径，严禁回退运行时 skip 解析——那会解析到
+	// components/ext 包自身帧，污染 problem type 聚合。
 	logrus.SetReportCaller(false)
 	logrus.AddHook(logHook{})
 	return nil
@@ -64,7 +58,16 @@ func (logHook) Fire(entry *logrus.Entry) error {
 	}
 
 	if entry.Level <= logrus.ErrorLevel {
-		cat.LogError(entry.Context, errors.New(logSeparate+entry.Message), append([]string{entry.Message}, extra...)...)
+		// type 统一为真实业务调用方的完整包路径（与直接 cat.LogError 口径一致）。
+		// hook 栈帧不代表业务调用方，故显式透传 entry.Caller 解析出的包路径；
+		// entry.Caller 为 nil（getCaller 栈解析失败）时直接用 FallbackProblemType
+		// 兜底——若回退运行时 skip 解析会命中 ext 包自身帧，污染聚合口径。
+		// message 只保留一份日志原文（原文 · k1=v1 · k2=v2），hook 不再重复传原文。
+		typ := cat.FallbackProblemType
+		if entry.Caller != nil {
+			typ = cat.PackagePath(entry.Caller.Function)
+		}
+		cat.LogErrorWithCaller(entry.Context, typ, errors.New(entry.Message), extra...)
 		return nil
 	}
 

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -222,28 +223,110 @@ func TestLogError(t *testing.T) {
 	if p.tags["service"] != "svc-a" {
 		t.Fatalf("service tag = %q, want svc-a", p.tags["service"])
 	}
-	if p.tags["type"] != problemType {
-		t.Fatalf("type tag = %q, want %q", p.tags["type"], problemType)
+	if p.tags["type"] != PackagePath(testFuncName()) {
+		t.Fatalf("type tag = %q, want caller package %q", p.tags["type"], PackagePath(testFuncName()))
 	}
 	if name, ok := p.tags["name"]; ok {
 		t.Fatalf("problem should not carry name tag, got %q", name)
 	}
 	msg := p.fields["message"].(string)
-	if !strings.Contains(msg, "*errors.errorString") || !strings.Contains(msg, "db timeout") {
-		t.Fatalf("message = %q, want category and error text", msg)
+	if msg != "db timeout" {
+		t.Fatalf("message = %q, want single original text", msg)
 	}
 
-	// args[0] 作分类，其余并入 message
-	LogError(context.Background(), errors.New("raw"), "my-category", "extra ctx")
+	// args 并入 message，空段跳过
+	LogError(context.Background(), errors.New("raw"), "extra ctx", "")
 	p2 := drainPoint(t, ch)
 	msg2 := p2.fields["message"].(string)
-	if !strings.Contains(msg2, "my-category") || !strings.Contains(msg2, "extra ctx") || !strings.Contains(msg2, "raw") {
-		t.Fatalf("message = %q, want category/msg/error text", msg2)
+	if msg2 != "raw · extra ctx" {
+		t.Fatalf("message = %q, want %q", msg2, "raw · extra ctx")
 	}
 
 	// nil error 安全
 	LogError(context.Background(), nil)
 	assertNoPoint(t, ch)
+}
+
+// testFuncName 返回当前测试函数的 runtime 全名，用于断言 type tag 为调用方包路径。
+func testFuncName() string {
+	pc, _, _, _ := runtime.Caller(1)
+	return runtime.FuncForPC(pc).Name()
+}
+
+// TestLogErrorSkipThroughWrapper 固定 LogError 的 caller 解析口径：经一层包装
+// 函数进入时 type 仍须指向测试函数（业务调用方）的包路径。若 skip 错位（历史
+// bug：跨函数 callerPackage skip 链漂移指向包装函数自身帧）仍落在 cat 包内，
+// 再深一层则解析到 testing 包——此处与 TestLogError 联合框定正确帧位。
+func TestLogErrorSkipThroughWrapper(t *testing.T) {
+	resetCat(t)
+	Init("svc-a")
+	ch := capturePoints(t)
+
+	wrap := func() { LogError(context.Background(), errors.New("via wrapper")) }
+	wrap()
+
+	if got := drainPoint(t, ch).tags["type"]; got != PackagePath(testFuncName()) {
+		t.Fatalf("type tag = %q, want caller package %q", got, PackagePath(testFuncName()))
+	}
+}
+
+func TestLogErrorWithCaller(t *testing.T) {
+	resetCat(t)
+	Init("svc-a")
+	ch := capturePoints(t)
+
+	LogErrorWithCaller(context.Background(), "github.com/alomerry/homelab-backend/service/blog/model", errors.New("boom"), "k=v")
+	p := drainPoint(t, ch)
+	if p.tags["type"] != "github.com/alomerry/homelab-backend/service/blog/model" {
+		t.Fatalf("type tag = %q, want explicit caller package", p.tags["type"])
+	}
+	if msg := p.fields["message"].(string); msg != "boom · k=v" {
+		t.Fatalf("message = %q, want %q", msg, "boom · k=v")
+	}
+
+	// typ 为空回退运行时解析（当前测试包）
+	LogErrorWithCaller(context.Background(), "", errors.New("x"))
+	if got := drainPoint(t, ch).tags["type"]; got != PackagePath(testFuncName()) {
+		t.Fatalf("type tag = %q, want runtime caller package", got)
+	}
+}
+
+func TestPackagePath(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"plain-func", "github.com/foo/bar/pkg.Fn", "github.com/foo/bar/pkg"},
+		{"method", "github.com/foo/bar/pkg.(*T).M", "github.com/foo/bar/pkg"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := PackagePath(c.in); got != c.want {
+				t.Fatalf("PackagePath(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+func TestJoinMessage(t *testing.T) {
+	cases := []struct {
+		name  string
+		first string
+		rest  []string
+		want  string
+	}{
+		{"single", "a", nil, "a"},
+		{"join", "a", []string{"k=v", "b"}, "a · k=v · b"},
+		{"skip-empty", "a", []string{"", "b"}, "a · b"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := joinMessage(c.first, c.rest...); got != c.want {
+				t.Fatalf("joinMessage(%q, %v) = %q, want %q", c.first, c.rest, got, c.want)
+			}
+		})
+	}
 }
 
 func TestTruncateString(t *testing.T) {
