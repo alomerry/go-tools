@@ -2,51 +2,29 @@ package cat
 
 import (
 	"context"
-	"runtime"
+	"errors"
+	"reflect"
 	"strings"
 )
 
 // problemSeparator 为 problem message 内各段的连接符，与 ext 日志上报侧共用口径。
 const problemSeparator = " · "
 
-// FallbackProblemType 为 type tag 兜底值：调用方包路径解析失败时（极端场景，
-// 如 runtime 栈不可用）退化为旧的固定值，保证点位仍可写入、可按 type 过滤。
-// 导出供 ext 日志上报侧共用同一兜底口径（见 components/ext/logger.go logHook）。
-const FallbackProblemType = "error"
-
-// fallbackProblemType 包内别名，保持既有引用简短。
-const fallbackProblemType = FallbackProblemType
+// fallbackProblemType 为 type tag 兜底值：错误类别推导失败时（err 全链为
+// errors/fmt 的通用类型，或类型名解析失败）退化该固定值，保证点位仍可写入、
+// 可按 type 过滤。
+const fallbackProblemType = "error"
 
 // LogError 记录一条异常打点（problem 点位）。args 作为附加信息（如 k=v 键值对）
-// 并入 message，空段跳过。type tag 为调用方的完整包路径
-// （如 github.com/alomerry/homelab-backend/service/blog/model），可直接 cat 调用
-// 与 logrus hook 两条路径统一口径；可变细节只进 message field，避免进 tag 造成
-// InfluxDB 序列基数膨胀。
+// 并入 message，空段跳过。type tag 为从 err 推导的错误类别（对标 Java 异常类名，
+// 如 PathError / boundsError），推导失败退化为 fallbackProblemType；可变细节
+// 只进 message field，避免进 tag 造成 InfluxDB 序列基数膨胀。
 func LogError(ctx context.Context, err error, args ...string) {
-	// 在 LogError 自身帧上直接取 runtime.Caller(1)：1=LogError 的调用方，即真实
-	// 业务调用方。不经 callerPackage(skip) 间接链（"LogError → LogErrorWithCaller
-	// → callerPackage(2)" 的跨函数 skip 推算随包装层级漂移，历史上曾错指到
-	// LogError/包装函数自身帧，type 退化为 components/cat 包路径污染聚合口径），
-	// 解析失败传空串由 LogErrorWithCaller 统一兜底。
-	typ := ""
-	if pc, _, _, ok := runtime.Caller(1); ok {
-		typ = PackagePath(runtime.FuncForPC(pc).Name())
-	}
-	LogErrorWithCaller(ctx, typ, err, args...)
-}
-
-// LogErrorWithCaller 与 LogError 相同，但 type tag 由调用方显式指定（典型为
-// logrus hook：hook 栈帧不代表真实业务调用方，须透传其预先解析的调用方包路径）。
-// typ 为空时按运行时解析直接调用方的包路径（skip：0=callerPackage、
-// 1=LogErrorWithCaller、2=直接调用方），再失败则退化为 FallbackProblemType。
-func LogErrorWithCaller(ctx context.Context, typ string, err error, args ...string) {
 	if err == nil || !isEnabled() {
 		return
 	}
 
-	if typ == "" {
-		typ = callerPackage(2)
-	}
+	typ := errorCategory(err)
 	if typ == "" {
 		typ = fallbackProblemType
 	}
@@ -63,25 +41,30 @@ func LogErrorWithCaller(ctx context.Context, typ string, err error, args ...stri
 	})
 }
 
-// callerPackage 返回运行时调用方（skip 口径同 runtime.Caller）的完整包路径。
-// 解析失败返回空串，由调用方决定兜底。
-func callerPackage(skip int) string {
-	pc, _, _, ok := runtime.Caller(skip)
-	if !ok {
-		return ""
+// errorCategory 沿 Unwrap 解包链取错误的具体类型名（reflect 取 Name，天然不含
+// 包名与指针前缀，如 *fs.PathError → PathError）作为错误类别；panic 的运行时
+// 错误（runtime.boundsError/divideError）由此自然产出语义类别。取链上首个具
+// 语义类型名而非字面最内层：PathError/OpError 等包装类型必然继续 Unwrap 到
+// Errno/哨兵，最内层口径会让类别整体丢失。errors/fmt 包内的通用包装产物按
+// PkgPath 识别、仅作下钻节点（按裸类型名判定会误伤业务自定义同名类型，且追
+// 不上 stdlib 新增），全链无语义类型时返回空串，由调用方兜底。限制：仅覆盖
+// 单链 Unwrap() error，Unwrap() []error 形态的分支链（multi-%w 的 wrapErrors、
+// errors.Join 产物）不支持下钻、整体落兜底 "error"，与标准库 errors.Is/As 的
+// 单链遍历口径一致（当前两仓调用点无 Join 聚合，声明限制并锁定现状）。
+func errorCategory(err error) string {
+	for err != nil {
+		t := reflect.TypeOf(err)
+		if t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+		if pkg := t.PkgPath(); pkg != "errors" && pkg != "fmt" {
+			if name := t.Name(); name != "" {
+				return name
+			}
+		}
+		err = errors.Unwrap(err)
 	}
-	return PackagePath(runtime.FuncForPC(pc).Name())
-}
-
-// PackagePath 从 runtime 函数全名（如 github.com/foo/bar/pkg.(*T).M）解析出
-// 完整包路径（github.com/foo/bar/pkg）。无法识别时原样返回。
-func PackagePath(fn string) string {
-	slash := strings.LastIndex(fn, "/")
-	dot := strings.Index(fn[slash+1:], ".")
-	if dot < 0 {
-		return fn
-	}
-	return fn[:slash+1+dot]
+	return ""
 }
 
 // joinMessage 以 problemSeparator 连接各段，跳过空段。曾在此做跨段去重

@@ -1,5 +1,12 @@
 # 更新日志
 
+- **[2026-09-13] feat(cat): problem type 语义由调用方包路径改为错误类别（problem-type-error-category）**。feature/problem-type-error-category。problem 打点（measurement=problem）的 type tag 原为调用方完整包路径，语义改为「错误类别」，对标 Java 异常类名（如 OOM / IndexOutOfRange）：
+  - **cat.LogError**：不再解析调用方包路径，改为从 err 值自动推导类别——沿 `errors.Unwrap` 解包链取首个具语义错误的具体类型名（reflect `Name()`，天然去包名与指针前缀，`*fs.PathError` → `PathError`）；errors/fmt 包内的通用包装产物（`*errors.errorString`/`*fmt.wrapError`/`*fmt.wrapErrors`/`*errors.joinError` 等）只作链上下钻节点不作类别（PathError/OpError 等包装类型必然继续 Unwrap 到 Errno/哨兵，按字面最内层口径类别会整体丢失），通用类型按 `PkgPath` 识别而非裸类型名（业务自定义同名类型不误伤、自动覆盖 stdlib 新增通用类型）；全链无语义类型或类型名解析失败时兜底私有常量 `fallbackProblemType`（`"error"`，兜底值不变）；panic 的运行时错误（runtime.boundsError/divideError）经推导自然产出语义类别，无特判。`callerPackage` 与 LogError 内的 `runtime.Caller` 调用方帧解析随语义变更一并移除。
+  - **导出 API 收敛（Step 2b 精简，BREAKING）**：`PackagePath`/`LogErrorWithCaller`/`FallbackProblemType` 三个导出符号随本次移除——hook 改为直调 `cat.LogError` 后三者全仓（含 homelab-backend）均无消费方（`LogErrorWithCaller` 的 typ 显式传参随 hook 不再透传包路径而失去存在意义，`typ == ""` 分支成永真死代码；fallback 常量收回私有）。三者已随 v0.4.1 tag 公开发布，删除会破坏外部消费者的编译，发版建议 minor bump（v0.5.0）。
+  - **components/ext/logger.go logHook**：日志文本无错误值可推导，由透传 `cat.PackagePath(entry.Caller.Function)` 改为直调 `cat.LogError`，日志型 problem 的 type 落 `"error"` 兜底；`entry.Caller = getCaller()` 保留（custom formatter 仍消费它输出日志调用位置）。
+  - **测试**：`cat_test.go` 新增 `TestErrorCategory` 表驱动（PathError 提取 / errorString 兜底 / %w 与多层包装解包 / 包装内层通用类型兜底 / 多 %w 与 joinError 兜底 / 自定义错误类型 / runtime boundsError panic 自然推导）；`TestLogError` 改断言推导口径（errorString 兜底 + PathError 推导出类别）；随包路径口径与 typ 透传一并失效的 `TestLogErrorSkipThroughWrapper`/`TestLogErrorWithCaller`/`testFuncName`/`TestPackagePath` 删除。
+  - **注意**：type tag 取值语义由调用方完整包路径变更为错误类别（推导出的类别名，失败兜底 `"error"`）；已确认线上无按旧 type 过滤的告警/面板，无查询侧迁移要求。
+
 - **[2026-09-12] fix(cat/ext): problem type caller 解析口径修正（problem-refactor 审查修复）**。feature/problem-refactor。两处 skip/兜底口径缺陷：
   - **cat.LogError**：改为在自身帧上直接 `runtime.Caller(1)`（1=业务调用方），不再经 `LogErrorWithCaller → callerPackage(2)` 的跨函数 skip 链推算——该链随包装层级漂移，经 LogError 进入时会错指 LogError 自身帧，type 退化为 components/cat 包路径污染聚合。新增回归用例 `TestLogErrorSkipThroughWrapper`（经包装函数调用，框定帧位，防 skip 再漂移）。
   - **components/ext/logger.go logHook**：`entry.Caller` 为 nil（getCaller 栈解析失败）时不再回退运行时 skip 解析（会解析到 ext 包自身帧），改用新增导出常量 `cat.FallbackProblemType`（原 `fallbackProblemType` 导出供两侧共用兜底口径）；Init 注释固定 caller 解析契约（`SetReportCaller(false)` 关闭 logrus 内建 caller、`entry.Caller` 由 hook 自行注入、nil 时必须走兜底）。

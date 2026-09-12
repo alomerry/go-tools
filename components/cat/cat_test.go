@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -214,6 +214,7 @@ func TestLogError(t *testing.T) {
 	Init("svc-a")
 	ch := capturePoints(t)
 
+	// fmt.Errorf（无 %w）产物为 errorString，无语义推导不出类别 → 兜底
 	LogError(context.Background(), fmt.Errorf("db timeout"))
 	p := drainPoint(t, ch)
 
@@ -223,8 +224,8 @@ func TestLogError(t *testing.T) {
 	if p.tags["service"] != "svc-a" {
 		t.Fatalf("service tag = %q, want svc-a", p.tags["service"])
 	}
-	if p.tags["type"] != PackagePath(testFuncName()) {
-		t.Fatalf("type tag = %q, want caller package %q", p.tags["type"], PackagePath(testFuncName()))
+	if p.tags["type"] != fallbackProblemType {
+		t.Fatalf("type tag = %q, want fallback %q", p.tags["type"], fallbackProblemType)
 	}
 	if name, ok := p.tags["name"]; ok {
 		t.Fatalf("problem should not carry name tag, got %q", name)
@@ -234,12 +235,19 @@ func TestLogError(t *testing.T) {
 		t.Fatalf("message = %q, want single original text", msg)
 	}
 
+	// 语义化错误类型推导出类别，且不依赖调用方栈帧
+	LogError(context.Background(), &fs.PathError{Op: "open", Path: "/x", Err: fs.ErrNotExist})
+	p2 := drainPoint(t, ch)
+	if got := p2.tags["type"]; got != "PathError" {
+		t.Fatalf("type tag = %q, want PathError", got)
+	}
+
 	// args 并入 message，空段跳过
 	LogError(context.Background(), errors.New("raw"), "extra ctx", "")
-	p2 := drainPoint(t, ch)
-	msg2 := p2.fields["message"].(string)
-	if msg2 != "raw · extra ctx" {
-		t.Fatalf("message = %q, want %q", msg2, "raw · extra ctx")
+	p3 := drainPoint(t, ch)
+	msg3 := p3.fields["message"].(string)
+	if msg3 != "raw · extra ctx" {
+		t.Fatalf("message = %q, want %q", msg3, "raw · extra ctx")
 	}
 
 	// nil error 安全
@@ -247,66 +255,49 @@ func TestLogError(t *testing.T) {
 	assertNoPoint(t, ch)
 }
 
-// testFuncName 返回当前测试函数的 runtime 全名，用于断言 type tag 为调用方包路径。
-func testFuncName() string {
-	pc, _, _, _ := runtime.Caller(1)
-	return runtime.FuncForPC(pc).Name()
-}
-
-// TestLogErrorSkipThroughWrapper 固定 LogError 的 caller 解析口径：经一层包装
-// 函数进入时 type 仍须指向测试函数（业务调用方）的包路径。若 skip 错位（历史
-// bug：跨函数 callerPackage skip 链漂移指向包装函数自身帧）仍落在 cat 包内，
-// 再深一层则解析到 testing 包——此处与 TestLogError 联合框定正确帧位。
-func TestLogErrorSkipThroughWrapper(t *testing.T) {
-	resetCat(t)
-	Init("svc-a")
-	ch := capturePoints(t)
-
-	wrap := func() { LogError(context.Background(), errors.New("via wrapper")) }
-	wrap()
-
-	if got := drainPoint(t, ch).tags["type"]; got != PackagePath(testFuncName()) {
-		t.Fatalf("type tag = %q, want caller package %q", got, PackagePath(testFuncName()))
-	}
-}
-
-func TestLogErrorWithCaller(t *testing.T) {
-	resetCat(t)
-	Init("svc-a")
-	ch := capturePoints(t)
-
-	LogErrorWithCaller(context.Background(), "github.com/alomerry/homelab-backend/service/blog/model", errors.New("boom"), "k=v")
-	p := drainPoint(t, ch)
-	if p.tags["type"] != "github.com/alomerry/homelab-backend/service/blog/model" {
-		t.Fatalf("type tag = %q, want explicit caller package", p.tags["type"])
-	}
-	if msg := p.fields["message"].(string); msg != "boom · k=v" {
-		t.Fatalf("message = %q, want %q", msg, "boom · k=v")
-	}
-
-	// typ 为空回退运行时解析（当前测试包）
-	LogErrorWithCaller(context.Background(), "", errors.New("x"))
-	if got := drainPoint(t, ch).tags["type"]; got != PackagePath(testFuncName()) {
-		t.Fatalf("type tag = %q, want runtime caller package", got)
-	}
-}
-
-func TestPackagePath(t *testing.T) {
+// TestErrorCategory 表驱动覆盖错误类别推导：具体类型名提取（去包名/指针）、
+// 解包链取首个具语义类型名、通用无语义类型兜底、panic 运行时错误的自然推导。
+func TestErrorCategory(t *testing.T) {
 	cases := []struct {
 		name string
-		in   string
+		err  error
 		want string
 	}{
-		{"plain-func", "github.com/foo/bar/pkg.Fn", "github.com/foo/bar/pkg"},
-		{"method", "github.com/foo/bar/pkg.(*T).M", "github.com/foo/bar/pkg"},
+		{"path-error", &fs.PathError{Op: "open", Path: "/x", Err: fs.ErrNotExist}, "PathError"},
+		{"error-string-no-semantics", errors.New("boom"), ""},
+		{"wrap-error-unwraps", fmt.Errorf("call failed: %w", &fs.PathError{Op: "open", Path: "/x", Err: fs.ErrNotExist}), "PathError"},
+		{"nested-wrap-unwraps", fmt.Errorf("a: %w", fmt.Errorf("b: %w", &fs.PathError{Op: "open", Path: "/x", Err: fs.ErrNotExist})), "PathError"},
+		{"wrapped-generic-falls-back", fmt.Errorf("a: %w", errors.New("inner")), ""},
+		{"multi-wrapped-generics-fall-back", fmt.Errorf("a %w b %w", errors.New("x"), errors.New("y")), ""},
+		{"wrapped-join-falls-back", fmt.Errorf("a: %w", errors.Join(errors.New("x"), errors.New("y"))), ""},
+		{"join-with-semantic-falls-back", errors.Join(&cronJobError{msg: "job failed"}, errors.New("x")), ""},
+		{"custom-type", &cronJobError{msg: "job failed"}, "cronJobError"},
+		{"wrapped-custom-type", fmt.Errorf("ctx: %w", &cronJobError{msg: "job failed"}), "cronJobError"},
+		{"runtime-bounds-panic", recoveredBoundsPanic(), "boundsError"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := PackagePath(c.in); got != c.want {
-				t.Fatalf("PackagePath(%q) = %q, want %q", c.in, got, c.want)
+			if got := errorCategory(c.err); got != c.want {
+				t.Fatalf("errorCategory(%T) = %q, want %q", c.err, got, c.want)
 			}
 		})
 	}
+}
+
+// cronJobError 测试用自定义错误类型，模拟业务语义化错误。
+type cronJobError struct {
+	msg string
+}
+
+func (e *cronJobError) Error() string { return e.msg }
+
+// recoveredBoundsPanic 触发切片越界 panic 并恢复为 error，模拟运行时 panic 错误
+// 经 LogError 打点的来源形态（defer 恢复 + error 接口捕获）。
+func recoveredBoundsPanic() (err error) {
+	defer func() { err, _ = recover().(error) }()
+	var s []int
+	_ = s[1] //nolint:govet // 刻意越界触发 runtime.boundsError
+	return
 }
 
 func TestJoinMessage(t *testing.T) {
