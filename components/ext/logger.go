@@ -47,12 +47,6 @@ func (logHook) Levels() []logrus.Level {
 }
 
 func (logHook) Fire(entry *logrus.Entry) error {
-	// Errorf 注入的 problem type 保留字段只进 problem tag：先取后删，保证它
-	// 不进下方 extras 遍历、也不残留给 formatter（含 env.Local 短路路径——
-	// 本地日志行同样不能出现该内部字段）。
-	typ, _ := entry.Data[log.ReservedProblemTypeField].(string)
-	delete(entry.Data, log.ReservedProblemTypeField)
-
 	if env.Local() {
 		return nil
 	}
@@ -64,20 +58,22 @@ func (logHook) Fire(entry *logrus.Entry) error {
 	}
 
 	if entry.Level <= logrus.ErrorLevel {
-		// type 优先取 Errorf 注入的调用点格式串（编译期常量，可聚合、可反查
-		// 源码）；无格式串形态（log.Error(args...)）退化为动态日志文本，cat
-		// 侧截断后作 tag，文本也为空才落 fallbackProblemType。message 只保留
-		// 一份日志原文（原文 · k1=v1 · k2=v2）。
-		if typ == "" {
-			typ = entry.Message
-		}
-		cat.LogErrorWithType(entry.Context, typ, errors.New(entry.Message), extra...)
+		// type 统一取 entry.Message：logrus 已按调用点参数完成占位符格式化
+		// （Errorf("not found: %s", path) → "not found: GET /ping"），带参与无参
+		// 形态同一路径，告警侧展示真实日志文本而非未展开的 %s 格式串。注意
+		// type 为动态文本（如 404 的任意 path 会产生新 tag），InfluxDB 序列基数
+		// 由 cat 侧 maxProblemType 截断与调用方约束兜底，属已接受的取舍。
+		reportProblem(entry.Context, entry.Message, errors.New(entry.Message), extra...)
 		return nil
 	}
 
 	cat.AddData(entry.Context, strings.Join(append([]string{fmt.Sprintf("[%v]%s", entry.Level.String(), entry.Message)}, extra...), "\n"))
 	return nil
 }
+
+// reportProblem 为 problem 打点出口。包级变量仅为单测注入捕获 type/err/extra，
+// 生产行为固定指向 cat.LogErrorWithType。
+var reportProblem = cat.LogErrorWithType
 
 //go:linkname getPackageName github.com/sirupsen/logrus.getPackageName
 func getPackageName(string) string

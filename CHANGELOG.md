@@ -1,5 +1,8 @@
 # 更新日志
 
+- **[2026-09-13] fix(alert): problem 打点 type 改用格式化后的日志文本，修复「not found: %s %s」未格式化占位符透出 kook 告警（alert-notify-optimize）**。logHook 层 problem type 统一取 logrus 已按调用点参数格式化的 `entry.Message`（如 `not found: GET /ping1`），带参 `Errorf/Fatalf/Panicf` 调用点零改动统一生效，无参形态同一路径；type 截断（maxProblemType）与换行归一化逻辑保留于 cat 侧，空文本仍由 fallbackProblemType 兜底。取舍：type 由编译期格式串常量变为动态日志文本（扫描器任意 404 path 会产生新序列），InfluxDB tag 基数风险已确认为接受项。随语义变更清理冗余的 `ReservedProblemTypeField` 机制：删除 `components/log` 的保留字段常量与 Errorf/Panicf/Fatalf 注入（回归普通 logrus 调用）、custom formatter 的跳过分支及对应注入口径测试；`components/ext` 的 logHook 改为直取 `entry.Message`，problem 出口收敛为包级 `reportProblem` seam（生产固定指向 `cat.LogErrorWithType`，仅单测注入捕获）。单测覆盖带参格式化、无参 Error/Fatal/Panic、空文本兜底与非 error 级别不打点位。
+  验证：`go build ./...`、`go vet ./components/log/... ./components/ext/...` 通过；`go test -count=1 ./...` 全部包 ok；触碰文件 gofmt 干净。
+
 - **[2026-09-13] fix/refactor: 质量批——P2 精选修复 + README 重写 + golangci-lint（full-review-p2）**。基于 2026-09-11 全面审查报告第四批：
   - **static/env**：`Debug()` 宽松解析（`1/true/debug` 大小写不敏感均开启，原要求 `DEBUG=DEBUG` 精确匹配）；`GetElasticSearchAK` 优先读 `ELASTICSEARCH_API_KEY` 并回退旧变量名（历史命名与语义不符，部署侧可渐进迁移）。
   - **utils**：`struct.CallMethodByName` 参数个数越界防御（原 `In(i)` 越界 panic，现返回 error）；`context.FromCtx` 的 grpc metadata key 小写化匹配；`algorithm.Set.Has/Remove` nil receiver 防御；`files.GetFileType` 无扩展名返回空串（原 `GetFileType("csv")` 误返回 `"csv"`，测试同步修正）。
