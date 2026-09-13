@@ -53,6 +53,11 @@ func (c *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	)
 
 	for key, value := range entry.Data {
+		// ReservedProblemTypeField 仅承载 problem type（ext logHook 消费后即删），
+		// 非日志内容；此处跳过兜住 hook 未注册的配置，保证注入字段绝不进日志行。
+		if key == ReservedProblemTypeField {
+			continue
+		}
 		_, _ = fmt.Fprintf(&buffer, "[%s:%v]", key, value)
 	}
 

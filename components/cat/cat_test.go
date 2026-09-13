@@ -255,6 +255,60 @@ func TestLogError(t *testing.T) {
 	assertNoPoint(t, ch)
 }
 
+// TestLogErrorWithType 覆盖显式 type 口径（logHook 路径）：typ 直写 tag、
+// 空 typ 落 fallbackProblemType、超长 typ 截断、extras 并入 message；并验证
+// LogError 经 err 推导委托后行为不变。
+func TestLogErrorWithType(t *testing.T) {
+	resetCat(t)
+	Init("svc-a")
+	ch := capturePoints(t)
+
+	// 显式 typ（Errorf 格式串形态）直写 tag，extras 并入 message
+	LogErrorWithType(context.Background(), "db query failed: %v", errors.New("db query failed: timeout"), "k=v")
+	p := drainPoint(t, ch)
+	if p.measurement != "problem" {
+		t.Fatalf("measurement = %q, want problem", p.measurement)
+	}
+	if p.tags["type"] != "db query failed: %v" {
+		t.Fatalf("type tag = %q, want format string", p.tags["type"])
+	}
+	if msg := p.fields["message"].(string); msg != "db query failed: timeout · k=v" {
+		t.Fatalf("message = %q, want extras appended", msg)
+	}
+
+	// 空 typ（Error 无格式串形态且文本为空）落兜底
+	LogErrorWithType(context.Background(), "", errors.New("x"))
+	if p2 := drainPoint(t, ch); p2.tags["type"] != fallbackProblemType {
+		t.Fatalf("type tag = %q, want fallback %q", p2.tags["type"], fallbackProblemType)
+	}
+
+	// 超长 typ 截断到 maxProblemType
+	LogErrorWithType(context.Background(), strings.Repeat("t", maxProblemType+100), errors.New("x"))
+	if p3 := drainPoint(t, ch); len(p3.tags["type"]) != maxProblemType {
+		t.Fatalf("type tag len = %d, want %d", len(p3.tags["type"]), maxProblemType)
+	}
+
+	// 换行归一为空格：type tag 保持单行卫生
+	LogErrorWithType(context.Background(), "line1\nline2\rline3", errors.New("x"))
+	if p := drainPoint(t, ch); p.tags["type"] != "line1 line2 line3" {
+		t.Fatalf("type tag = %q, want newlines normalized", p.tags["type"])
+	}
+
+	// nil error 安全
+	LogErrorWithType(context.Background(), "typ", nil)
+	assertNoPoint(t, ch)
+
+	// LogError 直打路径（err 推导委托）行为不变：语义类型仍推导、通用类型仍兜底
+	LogError(context.Background(), &fs.PathError{Op: "open", Path: "/x", Err: fs.ErrNotExist})
+	if p4 := drainPoint(t, ch); p4.tags["type"] != "PathError" {
+		t.Fatalf("type tag = %q, want PathError", p4.tags["type"])
+	}
+	LogError(context.Background(), errors.New("boom"))
+	if p5 := drainPoint(t, ch); p5.tags["type"] != fallbackProblemType {
+		t.Fatalf("type tag = %q, want fallback %q", p5.tags["type"], fallbackProblemType)
+	}
+}
+
 // TestErrorCategory 表驱动覆盖错误类别推导：具体类型名提取（去包名/指针）、
 // 解包链取首个具语义类型名、通用无语义类型兜底、panic 运行时错误的自然推导。
 func TestErrorCategory(t *testing.T) {

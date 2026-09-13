@@ -9,6 +9,7 @@ import (
 // 点位字段长度上限，防止异常输入（大响应体、长堆栈等）撑爆内存。
 const (
 	maxProblemMessage  = 512
+	maxProblemType     = 128
 	maxEventData       = 2048
 	maxTransactionData = 8
 	maxDataValue       = 1024

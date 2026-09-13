@@ -20,11 +20,26 @@ const fallbackProblemType = "error"
 // 如 PathError / boundsError），推导失败退化为 fallbackProblemType；可变细节
 // 只进 message field，避免进 tag 造成 InfluxDB 序列基数膨胀。
 func LogError(ctx context.Context, err error, args ...string) {
+	LogErrorWithType(ctx, errorCategory(err), err, args...)
+}
+
+// LogErrorWithType 与 LogError 的差异仅在 type tag 来源：typ 由调用方显式指定
+// 而非从 err 推导（logHook 场景——日志文本没有原始错误值，type 取 Errorf 注入
+// 的调用点格式串或动态日志文本兜底）。typ 按 maxProblemType 截断（兜底形态
+// 含可变长日志文本，须约束 tag 体积），截空或入参为空退化为 fallbackProblemType。
+func LogErrorWithType(ctx context.Context, typ string, err error, args ...string) {
 	if err == nil || !isEnabled() {
 		return
 	}
 
-	typ := errorCategory(err)
+	// type tag 单行卫生：格式串与兜底日志文本都可能带换行，统一归一为空格
+	// 后再截断。
+	typ = truncateString(strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\r' {
+			return ' '
+		}
+		return r
+	}, typ), maxProblemType)
 	if typ == "" {
 		typ = fallbackProblemType
 	}
