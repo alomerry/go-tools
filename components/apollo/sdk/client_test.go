@@ -21,6 +21,8 @@ func TestNewClient(t *testing.T) {
 func TestDo_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "token", r.Header.Get("Authorization"))
+		// resty 仅在 JSON content-type 下解码 SetResult
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"name":"test"}`))
 	}))

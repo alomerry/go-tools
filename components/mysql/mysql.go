@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"database/sql"
+	"fmt"
 	"sync"
 	"time"
 
@@ -13,26 +14,24 @@ import (
 var (
 	DefaultClient *bun.DB
 	once          sync.Once
+	initErr       error
 )
 
-func InitDefaultClient(dsn string) {
-	if DefaultClient != nil {
-		return
-	}
-
+// InitDefaultClient 幂等初始化包级默认连接，并发安全。原实现在 once 外裸读
+// DefaultClient（race）且失败 panic 后 once 被消耗、后续调用永远拿到 nil。
+// 现失败以 error 返回（DefaultClient 为 nil，不重试——连接配置错误应视为
+// 致命问题由调用方终止启动）。
+func InitDefaultClient(dsn string) error {
 	once.Do(func() {
-		var err error
-		DefaultClient, err = NewBunMySqlClient(dsn)
-		if err != nil {
-			panic(err)
-		}
+		DefaultClient, initErr = NewBunMySqlClient(dsn)
 	})
+	return initErr
 }
 
 func NewBunMySqlClient(dsn string) (*bun.DB, error) {
 	sqldb, err := sql.Open("mysql", dsn)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("open mysql failed: %w", err)
 	}
 
 	db := bun.NewDB(sqldb, mysqldialect.New())

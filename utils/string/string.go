@@ -16,6 +16,9 @@ func FirstNotBlank(strs ...string) string {
 }
 
 func Limit(str string, limit int) string {
+	if limit < 0 {
+		return ""
+	}
 	if len(str) > limit {
 		return str[:limit]
 	}

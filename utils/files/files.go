@@ -21,11 +21,12 @@ func GetFileName(filePath string) string {
 }
 
 func GetFileType(filePath string) string {
-	res := strings.Split(GetFileName(filePath), ".")
-	if len(res) == 0 {
-		return ""
+	name := GetFileName(filePath)
+	// 无扩展名（不含 . 或 . 在首位为隐藏文件）时返回空串
+	if idx := strings.LastIndex(name, "."); idx > 0 {
+		return name[idx+1:]
 	}
-	return res[len(res)-1]
+	return ""
 }
 
 func CreateTempFile(ctx context.Context, fileName string, fn func(file *os.File) error) (string, error) {

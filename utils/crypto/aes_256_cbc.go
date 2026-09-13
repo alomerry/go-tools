@@ -19,6 +19,11 @@ func DecryptAES256CBC(ciphertext, key, iv []byte) ([]byte, error) {
 		return nil, fmt.Errorf("ciphertext too short")
 	}
 
+	// 密文长度非块大小整数倍时 CryptBlocks 会 panic，提前校验
+	if len(ciphertext)%aes.BlockSize != 0 {
+		return nil, fmt.Errorf("ciphertext length %d is not a multiple of the block size", len(ciphertext))
+	}
+
 	if len(iv) != aes.BlockSize {
 		return nil, fmt.Errorf("IV length must equal block size")
 	}
@@ -30,7 +35,7 @@ func DecryptAES256CBC(ciphertext, key, iv []byte) ([]byte, error) {
 	mode.CryptBlocks(ciphertext, ciphertext)
 
 	// 移除 PKCS5 填充
-	return Pkcs5UnPadding(ciphertext), nil
+	return Pkcs5UnPadding(ciphertext)
 }
 
 // EncryptAES256CBC 使用 AES-256-CBC 加密明文
@@ -42,8 +47,9 @@ func EncryptAES256CBC(plaintext, key []byte) (string, error) {
 		return "", err
 	}
 
-	// 2. 对明文进行 PKCS5 填充
-	plaintext = Pkcs5Padding([]byte(base64.StdEncoding.EncodeToString(plaintext)), aes.BlockSize)
+	// 2. 对明文进行 PKCS5 填充（直接填充明文，与 DecryptAES256CBC 互逆；
+	// 原实现先对明文做 base64 编码再填充、解密侧却不解码，加解密不互逆）
+	plaintext = Pkcs5Padding(plaintext, aes.BlockSize)
 
 	// 3. 创建密文字节数组，长度为 IV 长度 + 填充后的明文长度
 	ciphertext := make([]byte, aes.BlockSize+len(plaintext))

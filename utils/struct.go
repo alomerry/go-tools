@@ -21,9 +21,14 @@ func CallMethodByName(receiver any, methodName string, args ...any) ([]reflect.V
 		return nil, errors.New(fmt.Sprintf("Method [%s] not found", methodName))
 	}
 
+	methodType := method.Type()
+	if methodType.NumIn() != len(args) {
+		return nil, fmt.Errorf("method [%s] expects %d args, got %d", methodName, methodType.NumIn(), len(args))
+	}
+
 	params := make([]reflect.Value, len(args))
 	for i, arg := range args {
-		argType := method.Type().In(i)
+		argType := methodType.In(i)
 		argVal := reflect.ValueOf(arg)
 		if !argVal.Type().AssignableTo(argType) {
 			argVal = argVal.Convert(argType)

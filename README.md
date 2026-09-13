@@ -3,6 +3,7 @@
 A comprehensive Go utility library providing various components, modules, and utilities for common development tasks.
 
 [![go report](https://goreportcard.com/badge/github.com/alomerry/go-tools)](https://goreportcard.com/report/github.com/alomerry/go-tools)
+[![CI](https://github.com/alomerry/go-tools/actions/workflows/ci.yml/badge.svg)](https://github.com/alomerry/go-tools/actions/workflows/ci.yml)
 
 ## Requirements
 
@@ -16,164 +17,171 @@ go get github.com/alomerry/go-tools
 
 ## Overview
 
-This library is organized into three main categories:
+This library is organized into four main categories:
 
-- **Components**: Reusable client wrappers for various services
-- **Modules**: Standalone tools and utilities
-- **Utils**: General-purpose utility functions
+- **Components**: reusable client wrappers for middleware and external services
+- **Utils**: general-purpose utility functions and data structures
+- **Static**: configuration constants, environment helpers, and error definitions
+- **Misc**: custom go/analysis vet tool, shared models, and test helpers
+
+> 中文文档见 [README_ZH.md](README_ZH.md)。
 
 ## Components
 
 ### Configuration Management
 
-- **Apollo** (`components/apollo`): Apollo configuration center client with change listeners
+- **Apollo** (`components/apollo`): Apollo config center client with change listeners and generic `Dynamic[T]` hot-reload snapshots; includes `mananger` and `sdk` (OpenAPI) sub-packages
 
 ### Databases
 
-- **MySQL** (`components/mysql`): MySQL database client
+- **MySQL** (`components/mysql`): MySQL database client (bun ORM wrapper)
 - **MongoDB** (`components/mongo`): MongoDB client wrapper
 - **Redis** (`components/redis`): Redis client with key generation utilities
 
-### Message Queue & Streaming
+### Message Queue
 
-- **Kafka** (`components/kafka`): Kafka client for topic management, message production, and metadata operations
+- **Kafka** (`components/kafka`): Kafka client for topic management, message production, and admin operations
 
 ### Object Storage (OSS)
 
-- **OSS** (`components/oss`): Unified OSS client supporting multiple providers:
+- **OSS** (`components/oss`): unified OSS client supporting multiple providers:
   - Qiniu Kodo
   - MinIO
-  - AWS S3
+  - AWS S3 (S3-compatible protocol)
   - Cloudflare R2
+  - RustFS
 
 ### Time Series Database
 
-- **TSDB** (`components/tsdb`): Time series database client, currently supports InfluxDB
+- **TSDB** (`components/tsdb`): time series database client, currently supports InfluxDB (async write pipeline via Kafka), with query builder and concurrency-safe wrappers
 
-### Search & Analytics
+### Search
 
-- **Elasticsearch** (`components/es`): Elasticsearch typed client wrapper
+- **Elasticsearch** (`components/es`): Elasticsearch client wrapper with `sdk` sub-package
+
+### Metrics & Observability
+
+- **CAT** (`components/cat`): CAT-style server-side instrumentation (Transaction/Event/Problem), points land in InfluxDB via Kafka
+- **Monitor** (`components/monitor`): system monitoring (host/docker categories) with CPU, memory, disk, network, and load statistics
+- **Log** (`components/log`): logrus formatter and logging utilities (trace id injection, single-line output)
+
+### Notifications
+
+- **Notify** (`components/notify`): unified notification manager with a driver-based design:
+  - Bark (`drivers/bark`)
+  - Console (`drivers/console`)
+  - Kook (`drivers/kook`, card messages)
+  - Kook webhook encryption (`components/kook/webhook`)
 
 ### Infrastructure
 
-- **Kubernetes** (`components/k8s`): Kubernetes client for managing deployments, pods, services, and resources
+- **Kubernetes** (`components/k8s`): Kubernetes client for managing deployments, pods, services, and arbitrary YAML resources; includes cAdvisor pod usage collection via apiserver proxy
+- **Tekton** (`components/tekton`): Tekton client (PipelineRun/TaskRun/logs)
+- **SSH** (`components/ssh`): SSH client with private key/password auth and optional host key verification
 - **gRPC** (`components/grpc`): gRPC utilities including custom header matchers
 
-### Monitoring & Logging
+### HTTP
 
-- **Monitor** (`components/monitor`): System monitoring with CPU, memory, disk, and network statistics
-- **Log** (`components/log`): Logrus formatter and logging utilities
+- **HTTP** (`components/http`): resty-wrapped HTTP client (retry, CAT transaction integration)
+- **Ext** (`components/ext`): extension loading framework (`LoadExt`) that bootstraps Apollo/MySQL/Mongo/Redis/Metric/Logger uniformly
 
-## Modules
+### Misc
 
-### DNS Tools
-
-- **DNS** (`modules/dns`): DNS management tools supporting:
-  - Alibaba Cloud DNS (AliDNS)
-  - Cloudflare DNS
-
-### File Management
-
-- **Pusher** (`modules/pusher`): File upload tool for OSS with support for:
-  - File existence checking
-  - Automatic upload on file changes
-  - Cloudflare R2 support
-
-### Excel Processing
-
-- **SGS** (`modules/sgs`): Excel processing tools for delay analysis and reporting
+- **Cleaner** (`components/cleaner`): directory cleaning utility
+- **Collect** (`components/collect`): monitoring collection agent (local collection + SSH fleet management)
 
 ## Utils
 
 ### Data Structures
 
-- **Algorithm** (`utils/algorithm`):
-  - Binary Search Tree (BST)
-  - Queue
-  - Set (generic implementation)
+- **Algorithm** (`utils/algorithm`): queue and set (generic implementations)
+- **Cache** (`utils/cache`): generic LRU cache (concurrency-safe, TTL support)
+- **Maps** (`utils/maps`): concurrent map implementations
 
 ### Database Utilities
 
-- **DB** (`utils/db`): Database backup tools
-  - MySQL dump functionality
-  - MongoDB ObjectID utilities
+- **DB** (`utils/db`): database backup tools — mysqldump wrapper (password passed via env var)
 
 ### File Operations
 
-- **Files** (`utils/files`): File manipulation utilities
-- **Tar** (`utils/tar`): TAR archive operations
-- **Zip** (`utils/zip`): ZIP archive operations
+- **Files** (`utils/files`): file manipulation utilities
+- **Tar** (`utils/tar`): tar archive extraction (with Zip Slip protection)
+- **Zip** (`utils/zip`): zip archive operations
 
 ### Data Processing
 
 - **JSON** (`utils/json`): JSON processing utilities
-- **Array** (`utils/array`): Array manipulation functions
-- **Maps** (`utils/maps`): Concurrent map implementations
-- **String** (`utils/string`): String utility functions
-- **Random** (`utils/random`): Random string generation
+- **Array** (`utils/array`): array manipulation functions
+- **String** (`utils/string`): string utility functions
+- **Random** (`utils/random`): random string generation (not cryptographically secure)
 
 ### Network & Web
 
-- **Net** (`utils/net`): Network utilities
-- **UA** (`utils/ua`): User-Agent parsing utilities
+- **Net** (`utils/net`): network utilities
+- **UA** (`utils/ua`): user-agent parsing utilities
+- **Resty** (`utils/resty`): resty request middleware (CAT transactions, retry conditions)
 
 ### Security & Authentication
 
-- **JWT** (`utils/jwt`): JWT token generation and validation
+- **JWT** (`utils/jwt`): JWT token generation and validation (HS256 only)
+- **Crypto** (`utils/crypto`): AES-256-CBC encryption and PKCS5 padding
 
 ### Time & Context
 
-- **Time** (`utils/time`): Time utility functions
-- **Context** (`utils/context.go`): Context utilities
+- **Time** (`utils/time`): time utility functions
+- **Trace** (`utils/trace`): trace id context utilities
+- **Proto** (`utils/proto`): protobuf utilities
+- **Shell** (`utils/shell`): shell command execution
 
 ### Other Utilities
 
-- **Base** (`utils/base`): Base utility functions
-- **Vars** (`utils/vars`): Variable utilities
-- **Func** (`utils/func.go`): Function utilities
-- **Struct** (`utils/struct.go`): Struct reflection utilities
+- **Base** (`utils/base`): base utility functions
+- **Vars** (`utils/vars`): variable utilities
+- **Struct** (`utils/struct.go`): struct reflection utilities
 
 ## Static
 
 The `static` directory contains configuration constants, environment variable helpers, and error definitions:
 
-- **Cons** (`static/cons`): Application constants
-- **Env** (`static/env`): Environment variable helpers
-- **Errors** (`static/errors`): Error definitions
+- **Cons** (`static/cons`): application constants
+- **Env** (`static/env`): environment variable helpers
+- **Errors** (`static/errors`): error definitions
+
+## Model
+
+The `model` directory contains shared data models (monitoring stats, OSS config, etc.).
+
+## Analysis (custom vet)
+
+The `analysis` package provides custom go/analysis-based static checks (e.g. requiring `redis.Generator.GenKey` arguments to be constants from the cons package). `analysis/cmd` is the standalone entry point.
+
+## Test Helpers
+
+The `test` package provides test suite helpers (`BaseSuite`) and the integration test switch (`GO_TOOLS_TEST_INTEGRATION=1` enables tests requiring external environments).
 
 ## Usage Examples
 
-### OSS Client
+### Kafka Producer
 
 ```go
-import "github.com/alomerry/go-tools/components/oss"
-import "github.com/alomerry/go-tools/components/oss/meta"
-
-cfg := meta.Config{
-    Type:   meta.ClientTypeR2,
-    Bucket: "my-bucket",
-    // ... other config
-}
-
-client, err := oss.NewClient(cfg)
-if err != nil {
-    log.Fatal(err)
-}
-```
-
-### Kafka Client
-
-```go
-import "github.com/alomerry/go-tools/components/kafka"
-
-client := kafka.NewKafkaClient(ctx,
-    kafka.WithAddresses("localhost:9092"),
+import (
+	"github.com/alomerry/go-tools/components/kafka"
+	"github.com/segmentio/kafka-go"
 )
 
-topics, err := client.ListTopics()
+producer, err := kafka.NewDefaultProducer(ctx,
+	kafka.WithTopic("my-topic"),
+	kafka.WithAddress("localhost:9092"),
+)
 if err != nil {
-    log.Fatal(err)
+	log.Fatal(err)
 }
+defer producer.Close()
+
+err = producer.Write(ctx, kafka.Message{
+	Key:   []byte("key"),
+	Value: []byte(`{"value": 1}`),
+})
 ```
 
 ### System Monitor
@@ -181,34 +189,34 @@ if err != nil {
 ```go
 import "github.com/alomerry/go-tools/components/monitor"
 
-monitor := monitor.NewSystemMonitor(
-    monitor.WithContext(ctx),
-    monitor.WithInterval(30*time.Second),
-    monitor.WithCallback(func(stats *monitor.SystemStats) error {
-        log.Printf("CPU: %.2f%%, Memory: %.2f%%", 
-            stats.CPUUsage, stats.MemoryUsage)
-        return nil
-    }),
+m := monitor.NewSystemMonitor(
+	monitor.WithContext(ctx),
+	monitor.WithInterval(30*time.Second),
+	monitor.WithCallback(func(stats *monitor.SystemStats) error {
+		log.Printf("CPU: %.2f%%, Memory: %.2f%%",
+			stats.CpuUsage, stats.MemoryUsage)
+		return nil
+	}),
 )
 
-monitor.Watch()
+m.Watch()
 ```
 
-### Database Dump
+### MySQL Dump
 
 ```go
-import "github.com/alomerry/go-tools/utils/db"
-import "github.com/alomerry/go-tools/static/cons"
-
-tool := db.NewDumpTool(
-    db.MySQLDumpCmdParam("user:pass@tcp(localhost:3306)/dbname"),
-    db.SetDumpPath("/tmp/backups"),
+import (
+	"github.com/alomerry/go-tools/static/cons"
+	mysqlDump "github.com/alomerry/go-tools/utils/db/mysql"
 )
 
-files, err := tool.DumpDbs(cons.Database{
-    Type: cons.MySQL,
-    Name: "mydb",
-})
+var tool mysqlDump.DumpTool
+path, err := tool.Dump("/tmp/backups", map[string]any{
+	"user":     "root",
+	"host":     "localhost",
+	"port":     "3306",
+	"password": os.Getenv("MYSQL_PWD"),
+}, cons.Database{Name: "mydb"})
 ```
 
 ### Set Operations
@@ -217,10 +225,11 @@ files, err := tool.DumpDbs(cons.Database{
 import "github.com/alomerry/go-tools/utils/algorithm"
 
 set := algorithm.Instance[string]()
-set.Insert("a").Insert("b").Insert("c")
+set.Insert("a")
+set.Insert("b")
 
 if set.Has("a") {
-    fmt.Println("Set contains 'a'")
+	fmt.Println("Set contains 'a'")
 }
 
 items := set.ToArray()

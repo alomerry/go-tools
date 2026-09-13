@@ -4,10 +4,9 @@ import (
   "context"
   "fmt"
   "io/ioutil"
-  "net"
   "os"
   "time"
-  
+
   "github.com/alomerry/go-tools/components/log"
   "golang.org/x/crypto/ssh"
 )
@@ -65,10 +64,9 @@ func (c *client) Connect() error {
   sshConfig := &ssh.ClientConfig{
     User:    c.config.user,
     Timeout: c.config.timeout,
-    HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-      // 在生产环境中应该验证 HostKey，这里为了简化操作暂时跳过
-      return nil
-    },
+    // 主机密钥校验：显式配置（WithHostKey/WithHostKeyCallback）则严格校验；
+    // 未配置时跳过校验（中间人风险，可信内网可用），保持既有调用方兼容
+    HostKeyCallback: c.config.hostKeyCallback,
   }
   
 	if c.config.AuthByPrivateKey() {

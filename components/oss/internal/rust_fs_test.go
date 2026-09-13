@@ -9,6 +9,7 @@ import (
   "github.com/alomerry/go-tools/model"
   "github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/static/env"
+	"github.com/alomerry/go-tools/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,6 +25,9 @@ func newTestRustFs(t *testing.T) meta.OSSClient {
 }
 
 func TestUploadFromLocalByRustFs(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	oss := newTestRustFs(t)
 
 	rust, ok := oss.(*RustFs)
@@ -32,6 +36,9 @@ func TestUploadFromLocalByRustFs(t *testing.T) {
 }
 
 func TestRustFs_RemoveObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	oss := newTestRustFs(t)
 
 	err := oss.RemoveObject(context.TODO(), "blog")
@@ -39,6 +46,9 @@ func TestRustFs_RemoveObject(t *testing.T) {
 }
 
 func TestRustFs_RemoveObject2(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	oss := newTestRustFs(t)
 
 	err := oss.RemoveBucket(context.TODO(), cons.OssBucketBlog)

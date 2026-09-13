@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alomerry/go-tools/components/tsdb/def"
@@ -26,6 +27,7 @@ type influxdbClient struct {
 	client    influxdb2.Client
 	writeAPIs map[string]api.WriteAPIBlocking // cache for write APIs
 	asyncAPIs map[string]api.WriteAPI         // cache for async write APIs
+	writeMu   sync.Mutex                      // protects writeAPIs/asyncAPIs maps
 }
 
 func NewInfluxdbClient(ctx context.Context, org, endpoint, bucket, token string) (*influxdbClient, error) {
@@ -59,6 +61,10 @@ func (d *influxdbClient) validate() error {
 }
 
 func (d *influxdbClient) getWriteAPI(bucket string) api.WriteAPIBlocking {
+	// 多 goroutine 并发写不同 bucket 会同时 miss 并写 map（concurrent map
+	// writes fatal），加锁保护
+	d.writeMu.Lock()
+	defer d.writeMu.Unlock()
 	if wa, ok := d.writeAPIs[bucket]; ok {
 		return wa
 	}
@@ -81,7 +87,8 @@ func (d *influxdbClient) LogPointWithTime(ctx context.Context, bucket, measureme
 	}
 	writeAPI := d.getWriteAPI(bucket)
 	p := influxdb2.NewPoint(measurement, tags, fields, date)
-	return writeAPI.WritePoint(context.Background(), p)
+	// 透传调用方 ctx：超时/取消/trace 随调用链生效（原 context.Background() 丢弃）
+	return writeAPI.WritePoint(ctx, p)
 }
 
 func (d *influxdbClient) LogPoints(ctx context.Context, bucket string, points []def.Point) error {

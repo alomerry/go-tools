@@ -1,6 +1,7 @@
 package ua
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,26 @@ func TestParseUA(t *testing.T) {
 
 	for _, s := range userAgents {
 		ua := ParseUA(s)
-		assert.NotEmpty(t, ua.Name)
-		assert.NotEmpty(t, ua.OS)
-		assert.NotEmpty(t, ua.Device)
+		assert.NotEmpty(t, ua.Name, "UA %s", s)
+		assert.NotEmpty(t, ua.OS, "UA %s", s)
+		// Device 仅移动设备 UA 有值，桌面浏览器为空是正常语义；
+		// mileusna/useragent 对 FxiOS/Firefox Android/Opera Mini 不产出设备名，不在断言范围
+		if isDeviceDetectableUA(s) {
+			assert.NotEmpty(t, ua.Device, "UA %s should have device", s)
+		}
 	}
+}
+
+// isDeviceDetectableUA 判断 UA 是否属于该库能识别设备名的形态
+// （WebKit 系移动浏览器：Safari/Chrome Mobile，含 iPhone/iPad/Android+Chrome）
+func isDeviceDetectableUA(s string) bool {
+	if strings.Contains(s, "FxiOS") || strings.Contains(s, "Firefox") || strings.Contains(s, "Opera") {
+		return false
+	}
+	for _, marker := range []string{"iPhone", "iPad", "Mobile"} {
+		if strings.Contains(s, marker) {
+			return true
+		}
+	}
+	return false
 }

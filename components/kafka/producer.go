@@ -15,23 +15,18 @@ type Producer struct {
 // clientId
 
 func NewDefaultProducer(ctx context.Context, opts ...Option) (*Producer, error) {
-	var (
-		options = new(Options)
-	)
-
-	for _, opt := range opts {
-		opt(options)
-	}
+	// 经 newOptions 取默认超时等缺省值（原 new(Options) 绕过默认值，
+	// writeTimeout 零值=无限等待）
+	options := newOptions(opts...)
 
 	var (
-		timeout = 10 * time.Second
-		p       = new(Producer)
+		p = new(Producer)
 	)
 	dialer := &net.Dialer{
-		Timeout: timeout,
+		Timeout: options.writeTimeout,
 	}
 	transport := &kafka.Transport{
-		DialTimeout: 10 * time.Second,
+		DialTimeout: options.writeTimeout,
 		Dial:        dialer.DialContext,
 	}
 

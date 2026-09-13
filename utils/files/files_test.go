@@ -16,7 +16,12 @@ func TestGetFileName(t *testing.T) {
 
 func TestGetFileType(t *testing.T) {
 	t.Run("file name has dot", func(t *testing.T) {
-		assert.Equal(t, "csv", GetFileType("csv"))
+		assert.Equal(t, "csv", GetFileType("/root/run/staging.test.csv"))
+	})
+	t.Run("file name without extension", func(t *testing.T) {
+		// 无扩展名返回空串（原实现对 "csv" 这类无点名误返回自身）
+		assert.Equal(t, "", GetFileType("csv"))
+		assert.Equal(t, "", GetFileType("/root/run/.hidden"))
 	})
 }
 

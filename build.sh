@@ -1,10 +1,12 @@
 #!/bin/bash
+set -euo pipefail
 
-agent_demon() {
-  # 将 components/collect/agent_demo/main.go 构建成 linux 二进制到 bin 目录
+agent_demo() {
+  # 将 components/collect/agent_demo 构建成 linux 二进制到 bin 目录。
+  # 用包路径而非单文件构建：单文件模式会绕开依赖包的编译错误。
   mkdir -p bin
   rm -rf bin/agent_demo
-  GOOS=linux GOARCH=amd64 go build -o bin/agent_demo components/collect/agent_demo/main.go
+  GOOS=linux GOARCH=amd64 go build -o bin/agent_demo ./components/collect/agent_demo/
 
   cp bin/agent_demo /tmp/agent_demo
 }
@@ -33,7 +35,7 @@ go_test() {
 go_vet() {
   local vet_path="${1:-./...}"
   echo "Running vet for: $vet_path"
-  go vet "$vet_path" -timeout 60s
+  go vet "$vet_path"
 }
 
 custom_vet() {
@@ -58,7 +60,8 @@ main() {
       custom_vet $@
       ;;
     *)
-      echo "done!"
+      echo "usage: $0 {agent_demo|test|vet}"
+      exit 1
       ;;
   esac
 }

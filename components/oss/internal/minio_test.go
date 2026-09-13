@@ -9,6 +9,7 @@ import (
   
   "github.com/alomerry/go-tools/model"
   "github.com/alomerry/go-tools/static/env/oss"
+  "github.com/alomerry/go-tools/test"
 )
 
 var (
@@ -21,6 +22,9 @@ var (
 )
 
 func TestMinioClient_PutObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	testCfg.SSL = false
 
 	client, err := NewMinioClient(testCfg)
@@ -40,6 +44,9 @@ func TestMinioClient_PutObject(t *testing.T) {
 }
 
 func TestMinioClient_GetObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	testCfg.SSL = false
 	testCfg.BucketName = "homelab"
 
@@ -63,6 +70,9 @@ func TestMinioClient_GetObject(t *testing.T) {
 }
 
 func TestMinioClient_RemoveObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	testCfg.SSL = false
 	testCfg.BucketName = "homelab"
 
@@ -82,6 +92,9 @@ func TestMinioClient_RemoveObject(t *testing.T) {
 }
 
 func TestMinioClient_StatObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	testCfg.SSL = false
 	testCfg.BucketName = "homelab"
 
@@ -101,6 +114,9 @@ func TestMinioClient_StatObject(t *testing.T) {
 }
 
 func TestMinioClient_PresignedGetObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	testCfg := model.Config{
 		Endpoint:   "localhost:9000",
 		AccessKey:  "minioadmin",
@@ -124,6 +140,9 @@ func TestMinioClient_PresignedGetObject(t *testing.T) {
 }
 
 func TestMinioClient_CreateBucket(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	testCfg.SSL = false
 
 	client, err := NewMinioClient(testCfg)
@@ -140,6 +159,9 @@ func TestMinioClient_CreateBucket(t *testing.T) {
 }
 
 func TestMinioClient_ListObjects(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	// testCfg := meta.Config{
 	// 	Endpoint:   "localhost:9000",
 	// 	AccessKey:  "minioadmin",
@@ -161,6 +183,9 @@ func TestMinioClient_ListObjects(t *testing.T) {
 }
 
 func TestMinioClient_CopyObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	// testCfg := meta.Config{
 	// 	Endpoint:   "localhost:9000",
 	// 	AccessKey:  "minioadmin",
@@ -185,6 +210,9 @@ func TestMinioClient_CopyObject(t *testing.T) {
 }
 
 func TestMinioClient_RemoveBucket(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	testCfg.SSL = false
 
 	client, err := NewMinioClient(testCfg)

@@ -96,7 +96,9 @@ func GetJson[T any](name string) (*Dynamic[T], error) {
 	// Only ",dynamic" keys register an OnChange callback that hot-reloads the
 	// config. Non-dynamic keys (mysql/redis/mongo/kafka...) keep the initial
 	// snapshot for the process lifetime.
-	listener.TryWatchKey(name, func(newVal string) {
+	// 注册 key 与初始读同口径（带 clientId 前缀）：OnChange 事件推送的是
+	// 配置中心的实际 key（clientId.name），裸 name 永不匹配、回调永不触发。
+	listener.TryWatchKey(toKey(client.clientId, name), func(newVal string) {
 		nt := new(T)
 		if err := json.Unmarshal([]byte(newVal), nt); err != nil {
 			// Parse failure: keep the old snapshot (fail-open to last-known-good).

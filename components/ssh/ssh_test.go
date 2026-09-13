@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alomerry/go-tools/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -20,7 +21,11 @@ func init() {
 	)
 }
 
+// 依赖内网 SSH 主机（10.8.0.3）与本机私钥，集成开关控制
 func TestSSHClient_PrivateKeyAuth(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	var (
 		ctx     = context.TODO()
 		tc, err = NewClient(ctx, options...)
@@ -40,6 +45,9 @@ func TestSSHClient_PrivateKeyAuth(t *testing.T) {
 }
 
 func TestSSHClient_AuthFail(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
  
   
   var (

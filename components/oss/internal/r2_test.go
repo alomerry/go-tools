@@ -6,10 +6,14 @@ import (
 
 	"github.com/alomerry/go-tools/static/cons"
 	"github.com/alomerry/go-tools/static/env"
+	"github.com/alomerry/go-tools/test"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewCloudflareR2_DownloadToFileByCloudflareR2(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	oss, err := newCloudflareR2(
 		env.GetCloudflareAccountId(),
 		env.GetCloudflareR2AccountKey(),
@@ -22,6 +26,9 @@ func TestNewCloudflareR2_DownloadToFileByCloudflareR2(t *testing.T) {
 }
 
 func TestCloudflareR2_DownloadToFileByCloudflareR2(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	oss, err := newCloudflareR2(
 		env.GetCloudflareAccountId(),
 		env.GetCloudflareR2AccountKey(),

@@ -24,7 +24,8 @@ type CloudflareR2 struct {
 }
 
 func NewDefaultCloudflareR2(cfg model.Config) (*CloudflareR2, error) {
-	if cfg.AccountId == "" || cfg.AccessKey == "" && cfg.SecretKey == "" {
+	// 任一凭证为空即拒绝（原 && 优先级使半配置——有 key 没 secret——绕过校验）
+	if cfg.AccountId == "" || cfg.AccessKey == "" || cfg.SecretKey == "" {
 		return nil, errors.New("accountId or accessKey or secretKey is empty")
 	}
 

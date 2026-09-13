@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -55,9 +56,9 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 %s
 |> aggregateWindow(every: %s, fn: mean, createEmpty: false)
 `,
-		t.Bucket,
+		fluxEscape(t.Bucket),
 		start, end,
-		t.Measurement,
+		fluxEscape(t.Measurement),
 		t.getTags(),
 		t.getFields(),
 		t.getGroup(),
@@ -80,7 +81,25 @@ func (t *TsdbQueryOptions) validate() error {
 		return fmt.Errorf("start time must be before end time")
 	}
 
+	// Interval 以字面量插入查询，非法值（如含引号/表达式）属查询注入，直接拒绝
+	if t.Interval != "" && !fluxDurationRe.MatchString(t.Interval) {
+		return fmt.Errorf("invalid flux duration %q", t.Interval)
+	}
+
 	return nil
+}
+
+// fluxDurationRe 校验 Flux duration 字面量（如 -1m / 5s / 30m / 24h），
+// Interval 等拼接进查询的字面量必须匹配
+var fluxDurationRe = regexp.MustCompile(`^-?\d+(ns|us|µs|ms|s|m|h|d|w|y)$`)
+
+// fluxEscape 转义 Flux 双引号字符串字面量中的特殊字符。Bucket/Measurement/
+// tag 等外部输入直接 Sprintf 进查询时，值内含 `"` 即可逃逸出字符串并拼接
+// 任意 Flux 表达式（等价 SQL 注入），此处统一转义。
+func fluxEscape(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return s
 }
 
 // getTimeRange returns the Flux range literals for start and stop.
@@ -140,7 +159,7 @@ func (t *TsdbQueryOptions) getTags() string {
 		switch op {
 		case tsdb.OpEqual:
 			for _, v := range vs {
-				items = append(items, fmt.Sprintf(`r["%s"] == "%s"`, k, v))
+				items = append(items, fmt.Sprintf(`r["%s"] == "%s"`, fluxEscape(k), fluxEscape(v)))
 			}
 		}
 		tags = append(tags, fmt.Sprintf("|> filter(fn: (r) => %s)", strings.Join(items, " or ")))

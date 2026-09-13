@@ -2,8 +2,9 @@ package bark
 
 import (
   "context"
+  "errors"
   "fmt"
-  
+
   "github.com/alomerry/go-tools/components/ext"
   "github.com/alomerry/go-tools/components/http"
   req2 "github.com/alomerry/go-tools/components/http/opts/req"
@@ -43,6 +44,8 @@ func (n *Notifier) Send(ctx context.Context, msg *notify2.Message) error {
 		level = l
 	}
 
+	var sendErrs []error
+
 	for _, deviceId := range cfg.DeviceIds {
 		params := map[string]string{
 			"content":  msg.Content,
@@ -71,11 +74,12 @@ func (n *Notifier) Send(ctx context.Context, msg *notify2.Message) error {
 		_, err := http.GetClient().Get(ctx, queryUrl, reqOpts...)
 		if err != nil {
 			logrus.Errorf("notify device error: %v", err)
-			continue // 继续发送到其他设备
+			// 继续发送到其他设备，但错误聚合返回——告警静默丢失比失败更危险
+			sendErrs = append(sendErrs, fmt.Errorf("device %s: %w", deviceId, err))
 		}
 	}
 
-	return nil
+	return errors.Join(sendErrs...)
 }
 
 func (n *Notifier) Close() error {

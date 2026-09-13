@@ -6,12 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alomerry/go-tools/test"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
+// TestListener 依赖真实 Apollo 集群（Init 连接失败即 panic），集成开关控制
 func TestListener(t *testing.T) {
-  Init("colona", "colona")
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
+	Init("colona", "colona")
 
 	d, err := GetJson[value]("colona.meta,dynamic")
 	assert.Nil(t, err)

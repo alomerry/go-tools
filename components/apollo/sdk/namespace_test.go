@@ -3,8 +3,9 @@ package sdk
 import (
   "context"
   "testing"
-  
+
   "github.com/alomerry/go-tools/static/env"
+  "github.com/alomerry/go-tools/test"
   "github.com/stretchr/testify/assert"
 )
 
@@ -32,6 +33,9 @@ func (f fullInfo) GetNamespace() string {
 }
 
 func TestGetNamespace(t *testing.T) {
+  if !test.IntegrationEnabled() {
+    t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+  }
   var (
     ctx = context.TODO()
     req = fullInfo{

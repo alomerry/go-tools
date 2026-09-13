@@ -1,32 +1,33 @@
 package redis
 
 import (
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
 
-func NewRedisClient(url string) *redis.Client {
+func NewRedisClient(url string) (*redis.Client, error) {
 	// redis://<user>:<pass>@localhost:6379/<db>
 	opt, err := redis.ParseURL(url)
 	if err != nil {
-		log.Panicf("parse redis url failed, url: %v, err: %v", url, err.Error())
+		// 不打印原始 url（含明文密码），不 panic（构造失败交由调用方决策）
+		return nil, fmt.Errorf("parse redis url failed: %w", err)
 	}
 
-	return redis.NewClient(opt)
+	return redis.NewClient(opt), nil
 }
 
 var (
-  redisKeyGenerator = &keyGenerator{}
+	redisKeyGenerator = &keyGenerator{}
 )
 
 func KeyGen() Generator {
-  return redisKeyGenerator
+	return redisKeyGenerator
 }
 
 type Generator interface {
-  GenKey(category string, args ...string) string
+	GenKey(category string, args ...string) string
 }
 
 type keyGenerator struct {

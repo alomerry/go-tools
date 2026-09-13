@@ -1,10 +1,5 @@
 domain.toml
 
-*.txt
-*.xlsx
-*.exe
-
-
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -36,7 +31,7 @@ Thumbs.db
 /pprof/
 /vendor
 tmp
-testdata
+# 注意：不全局忽略 testdata——analysis 的 analysistest 用例依赖 testdata/ 入库
 custom_checker
 coverage.out
 coverage.html

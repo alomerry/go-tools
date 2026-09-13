@@ -35,13 +35,21 @@ func NewRedisExtension() Ext {
 }
 
 func (r *RedisExtension) Init(ctx context.Context) error {
-  if env.Local() {
-    r.redis = redis.NewRedisClient(os.Getenv(cons.REDIS_DSN))
-    return nil
-  }
-  
-  r.redis = redis.NewRedisClient(Apollo().GetRedisConfig().Uri)
-  return nil
+	if env.Local() {
+		client, err := redis.NewRedisClient(os.Getenv(cons.REDIS_DSN))
+		if err != nil {
+			return err
+		}
+		r.redis = client
+		return nil
+	}
+
+	client, err := redis.NewRedisClient(Apollo().GetRedisConfig().Uri)
+	if err != nil {
+		return err
+	}
+	r.redis = client
+	return nil
 }
 
 // client 返回底层 redis 客户端。两种情况显式返回错误而非裸解引用触发 nil

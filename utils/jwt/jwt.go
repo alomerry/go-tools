@@ -22,7 +22,7 @@ func VerifyToken(tokenString string, secret string) (*CustomClaims, error) {
 	)
 	token, err := jwt.ParseWithClaims(tokenString, &claim, func(token *jwt.Token) (any, error) {
 		return []byte(secret), nil
-	})
+	}, jwt.WithValidMethods([]string{"HS256"}))
 	if err != nil {
 		return nil, err
 	}

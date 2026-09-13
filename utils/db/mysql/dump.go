@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"time"
@@ -31,13 +30,17 @@ func (d *DumpTool) Dump(prefix string, params map[string]any, db cons.Database) 
 	}
 	defer dumpSql.Close()
 
+	// 密码经 MYSQL_PWD 环境变量传递（mysqldump 官方支持），
+	// 避免 -p<pwd> 出现在命令行被 ps 可见
+	cmd.Env = append(os.Environ(), fmt.Sprintf("MYSQL_PWD=%v", params["password"]))
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return cons.EmptyStr, err
 	}
 	defer stdout.Close()
 	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
+		return cons.EmptyStr, err
 	}
 
 	var (
@@ -67,12 +70,12 @@ func (d *DumpTool) Dump(prefix string, params map[string]any, db cons.Database) 
 }
 
 // genDumpCmdParam
-// mysqldump -u <user> -h <example.com> -P <port> -p <database>
+// mysqldump -u <user> -h <example.com> -P <port> <database>
+// （密码经 MYSQL_PWD 环境变量注入，见 Dump）
 func (*DumpTool) genDumpCmdParam(param map[string]any) []string {
 	return []string{
 		fmt.Sprintf("-u%s", param["user"]),
 		fmt.Sprintf("-h%s", param["host"]),
 		fmt.Sprintf("-P%s", param["port"]),
-		fmt.Sprintf("-p%s", param["password"]),
 	}
 }

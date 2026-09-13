@@ -7,6 +7,7 @@ import (
   "time"
   
   "github.com/alomerry/go-tools/model"
+	"github.com/alomerry/go-tools/test"
   "github.com/alomerry/go-tools/utils/random"
   
   "github.com/alomerry/go-tools/static/env/oss"
@@ -23,6 +24,9 @@ var (
 )
 
 func TestKodoClient_PutObject(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	ctx := context.Background()
 
 	objectKey := "pipeline/build/" + time.Now().Format("2006-01-02") + "/build-" + random.String(7) + ".log"

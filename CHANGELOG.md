@@ -1,5 +1,60 @@
 # 更新日志
 
+- **[2026-09-13] fix/refactor: 质量批——P2 精选修复 + README 重写 + golangci-lint（full-review-p2）**。基于 2026-09-11 全面审查报告第四批：
+  - **static/env**：`Debug()` 宽松解析（`1/true/debug` 大小写不敏感均开启，原要求 `DEBUG=DEBUG` 精确匹配）；`GetElasticSearchAK` 优先读 `ELASTICSEARCH_API_KEY` 并回退旧变量名（历史命名与语义不符，部署侧可渐进迁移）。
+  - **utils**：`struct.CallMethodByName` 参数个数越界防御（原 `In(i)` 越界 panic，现返回 error）；`context.FromCtx` 的 grpc metadata key 小写化匹配；`algorithm.Set.Has/Remove` nil receiver 防御；`files.GetFileType` 无扩展名返回空串（原 `GetFileType("csv")` 误返回 `"csv"`，测试同步修正）。
+  - **components/log**：formatter 修复 `entry.Buffer` 按值拷贝（`*entry.Buffer` 写拷贝绕开 pool 状态，改用指针）；上海时区 `d8` 修复为实际生效（曾加载后未使用，UTC 容器内日志时间差 8h）。
+  - **components/http**：`Post/Get` 在 err 非 nil 时返回 nil Response（原包装 nil 指针成非 nil 接口，调用方误判可用）。
+  - **components/monitor**：docker 内存 `MemoryUsage` 除零防御（cgroup limit 为 0 时产生 NaN，下游 json.Marshal 报错）；磁盘采集热路径日志降为 Debug。
+  - **components/tsdb**：`withTagOrField` default 分支的 `%T` 改打目标对象 m（原打值 v 误导排查）。
+  - **components/ext**：mongo `FindPageWithSort` 补 `defer cursor.Close`（原 Count 失败提前返回泄漏 cursor）。
+  - **README 重写（E6）**：中英文 README 对齐实际代码——删除幽灵 `modules/dns|pusher|sgs`，补全 cat/cleaner/collect/ext/http/kook/notify/ssh/tekton 等 9 个组件与 cache/crypto/proto/resty/shell/trace 等子包，示例代码全部替换为真实 API（原示例的 `meta.Config`/`NewKafkaClient` 单返回值等均不存在），新增 CI badge 与开发指引。
+  - **golangci-lint（E9）**：新增 `.golangci.yml`（v2 格式，govet/staticcheck/errcheck 等正确性向基线，测试文件从宽）；暂不纳入 CI 门禁（存量问题渐进清理，避免误报阻塞）。
+  - **P2 未列入本批的项**（k8s CRUD context.TODO()、informer 全集群过滤、es SearchRequest 校验、tsdb writer 池满丢弃语义、ext/logger getCaller 分配优化、kook webhook 解密算法核对等）留待后续批次。
+  - **验证**：`go build ./...`/`go vet ./...` 全绿；`go test -short ./...` 42 包全过。
+
+- **[2026-09-13] chore: 工程纪律批——CI、build.sh、测试全绿、.gitignore/go.mod 清理（full-review-engineering）**。基于 2026-09-11 全面审查报告第三批工程项：
+  - **CI（E3）**：新增 `.github/workflows/ci.yml`——build + vet + `go test -short`，master push 与 PR 触发。master 编译失败近一月无感知的问题自此有安全网。
+  - **build.sh（E1/E2）**：`set -euo pipefail`；函数名 `agent_demon` 与调用 `agent_demo` 不一致的必失败修复；agent_demo 改包路径构建（单文件构建恰好绕开依赖包编译错误）；无参数时输出 usage 并 exit 1（原 `echo done!` 退出码 0）。
+  - **测试全绿（E4）**：`go test ./...` 从 16 个失败包修复为 42 包全过——统一集成测试开关 `GO_TOOLS_TEST_INTEGRATION=1`（新增 `test.IntegrationEnabled()`），Apollo/apollo-sdk/Mongo（ext+组件）/MySQL ext/Redis ext/Kafka/K8s/Kook/Notify/OSS/SSH 的环境依赖测试默认 skip；collect 四个累计 sleep 30s 的 demo 循环测试响应 `-short`；`utils/ua` 修正断言语义（桌面 UA 无 Device 属正常、mileusna 库对 FxiOS/Firefox/Opera 不产出设备名）；`utils/tar` 重写为自建归档 round-trip + Zip Slip 逃逸回归（删除写死的外部机器路径）；`apollo/sdk TestDo_Success` 补 JSON content-type（resty 仅在 JSON content-type 下解码 SetResult）；`components/es` 凭证改环境变量注入未配置即 skip（随 P0 批）。
+  - **.gitignore（E5/E10）**：删除全局 `testdata` 忽略（analysis 的 analysistest 用例依赖 testdata 入库）；删除过宽的 `*.txt`/`*.xlsx`。
+  - **go.mod（E7）**：删除零引用的 `gen-crd-api-reference-docs` 无效 replace；`go mod tidy` 通过。
+  - **验证**：`go build ./...`/`go vet ./...` 全绿；`go test -short ./...` 42 包全过；`bash -n build.sh` 语法通过。
+
+- **[2026-09-13] fix: P1 功能修复批——热更新失效、数据 race、注入、安全加固（full-review-p1）**。基于 2026-09-11 全面审查报告第二批 24 项 P1 修复：
+  - **utils/algorithm**：`Queue.Instance` 修复 tick/duration 写到一次性 receiver 导致 `WithRemoveTicker` 完全失效；定时清理 goroutine 改 `ticking` 标志控制仅启动一次（原经未初始化 ctx 的 `Deadline()` 判断，nil context 必 panic 且从未生效）；移除无用的 `ctx.Done()` 丢弃调用。
+  - **utils/crypto**：`Pkcs5UnPadding` 带校验（空数据/填充非法返回 error，原静默截坏数据）；`DecryptAES256CBC` 增加密文块长度校验（非 16 倍数原必 panic）；`EncryptAES256CBC` 去掉明文 base64 预编码（与 Decrypt 不互逆，修复后一次加解密往返成立）。
+  - **utils/jwt**：`VerifyToken` 加 `jwt.WithValidMethods([]string{"HS256"})` 限定签名算法；测试修正过期 token 必须被拒绝的断言（原断言校验成功，属设计错误），新增异族算法拒绝回归。
+  - **utils/random**：改 `math/rand/v2` 全局源（原共享 `*rand.RPC` 源并发 race、UnixNano 种子可预测），移除 unsafe 转换；注释标明非密码学安全。
+  - **utils/db/mysql**：`Dump` 密码改经 `MYSQL_PWD` 环境变量传递（原 `-p<pwd>` 拼命令行 ps 可见）；`log.Fatal` 改返回 error。
+  - **utils/string**：`Limit(str, -1)` 负数越界防御。
+  - **utils/cache**：LRU 真正实现 maxTTL 语义（expires 过期表 + 惰性过期 + 后台清理 goroutine 随 ctx 退出，原 TTL 未实现、清理 goroutine 永不退出且无条件 RemoveOldest）；`WithCacheMaxTTL` 解析失败保持默认值不再吞错。
+  - **components/apollo**：`GetJson` 热更新监听 key 与初始读对齐（均带 clientId 前缀）——原监听注册用裸 name，OnChange 事件永不匹配，`,dynamic` 热更新回调从未触发。
+  - **components/http + utils/resty**：移除请求中间件里的 `client.SetTimeout`（共享单例每请求写共享字段为 data race 且互相覆盖；ctx deadline 已由底层传输天然遵守）。
+  - **components/kafka**：`NewKafkaClient` 改返回 `(*Client, error)`（未配地址不再越界 panic、dial 失败不再 panic 而返回带地址的错误）；`NewDefaultProducer` 改经 `newOptions` 取默认超时（原 `new(Options)` 绕过默认值，writeTimeout 零值=无限等待），dial 超时对齐该默认。
+  - **components/tsdb**：`getWriteAPI` 对 writeAPIs map 加锁（多 goroutine 并发写不同 bucket 触发 concurrent map writes fatal）；`LogPointWithTime` 透传调用方 ctx（原 context.Background() 丢弃超时/取消）；Flux 注入修复——bucket/measurement/tag key/value 统一 `fluxEscape` 转义、`Interval` 经 duration 字面量正则校验（`GetQuery` 对非法值返回 error）；`withTagOrField` 补 int/bool 及其余整型支持（原 `WithField("k",5)` 静默丢数据）。
+  - **components/mysql**：`InitDefaultClient` 改返回 error 并修 race（原 once 外裸读 DefaultClient；失败 panic 后 once 消耗、后续恒 nil）。
+  - **components/mongo**：`NewMongoClient` 失败返回带具体 err 的 error 而非 panic 丢错；Ping 失败释放底层连接。
+  - **components/redis**：`NewRedisClient` 改返回 `(*redis.Client, error)`（原 panic 且把含明文密码的 url 打进日志）；`ext` 两个 Init 调用点同步。
+  - **components/monitor**：`NewSystemMonitor` 默认值兜底（未传 ctx 时 `Done()` panic、未传 interval 时 `NewTicker(0)` panic、category 默认 host）。
+  - **components/oss**：`ClientTypeS3` 改路由 `NewMinioClient`（原错误路由 NewRustFs 读 RustFS 专属配置，S3 用户连错后端）；kodo `bucketName` 由硬编码个人 bucket 改取 `cfg.BucketName`；kodo 惰性初始化 `DownloadManager`（原 `q.dm` 从未初始化，DownloadToFile 必 nil panic）；R2 凭证校验修为三者任一为空即拒绝（原 `&&` 优先级使半配置绕过校验）。
+  - **components/ssh**：新增 `WithHostKey`/`WithHostKeyCallback` 选项支持主机密钥严格校验（`ssh.FixedHostKey` 等）；未配置时保持原跳过校验行为（注释标明中间人风险，兼容可信内网既有调用）。
+  - **components/notify/bark**：多设备发送失败错误经 `errors.Join` 聚合返回（原全部失败仍 return nil，告警静默丢失）。
+  - **components/ext**：metricExt 的 producer 初始化由构造函数挪至 `Init`（幂等），错误统一经 LoadExt fail-fast；catExt 对 metric 初始化失败显式 Warn 降级（移除 recover hack）；mongoExt/mysqlExt 的 Init 失败返回 error（原 `log.Panicf`），由 manager 统一 panic 决策。
+  - **验证**：`go build ./...`/`go vet ./...` 全绿；`go test -race` 对 cache/algorithm/maps/jwt/crypto/tsdb 全家/cat 通过；新增 crypto 加解密往返/非法填充/块长校验回归测试。
+
+- **[2026-09-13] fix: P0 止血批——编译失败、Zip Slip、必现 panic、kafka/es 关键缺陷（full-review-p0，发版建议 v0.5.2）**。基于 2026-09-11 全面审查报告的第一批 10 项 P0 修复：
+  - **components/collect**（master 编译失败近一月，P0#1）：`Agent.collector` 字段与 `WithCollector` 签名同步为 `func(context.Context) (*monitor.SystemStats, error)` 并透传 `a.ctx`；默认收集器包装 `monitor.CollectStats`（返回切片，host 类别恒单元素取首个，空切片返回 `AgentError`）；`agent_test.go` 同步签名。
+  - **utils/tar**（Zip Slip 路径遍历，P0#2）：新增 `safeTargetPath`——`filepath.Rel` 校验归档条目名不逃逸目标目录（`..` 前缀即报错），`extractTarGz`/`extractTar` 两处解压路径统一走校验。
+  - **utils/cache**（P0#3/#4）：`lruCache.Get` 先判 exists 再断言（修复 miss 时 nil.(T) 必 panic）；`Add`/`Get` 加写锁——groupcache lru 命中时会更新内部访问堆（提升新鲜度），Get 并非纯读，读写均需写锁。新增 `lru_test.go`（miss 不 panic、容量淘汰、8 goroutine × 200 次并发 Add/Get 经 `-race`）。
+  - **utils/maps**（P0#5）：`ConcurrentMap.Set` 对 nil map 懒初始化，零值可直接使用；重写 `concurrent_test.go` 既有断言错误（对从未 Set 的 key 断言 Get 命中、对无序 map 断言固定顺序，改为 WaitGroup 同步 + `ElementsMatch`），新增零值可用性用例，`-race` 通过。
+  - **utils/algorithm**（P0#6）：`Set.Clone` 由 `reflect.Copy`（指针值必 panic）改为直接遍历拷贝，移除 reflect 依赖。
+  - **components/kafka**（P0#7）：`Client.WriteMessages` 功能修复——原实现忽略 topic 参数直接写裸 conn（消息落默认分区而非目标 topic，任何场景不可用），改为经 `kafka.Writer` 写入（`Writer.Topic` 留空、topic 落到每条消息，SASL 透传 Transport，`Close` 连带释放 writer）；未配置地址时返回明确错误而非静默写错位置。
+  - **components/es**（凭证泄漏，P0#8）：`es_test.go` 硬编码真实 API Key 改为环境变量 `GO_TOOLS_TEST_ES_ENDPOINT`/`GO_TOOLS_TEST_ES_API_KEY` 注入，未配置时 `t.Skip`。**注意：该 Key 已随历史提交公开，需在 ES 集群侧吊销轮换**。
+  - **components/ext**（P0#9）：mysql `Watch` 健康检查 ping 失败由 `log.Panicf` 降级为 `Errorf`——goroutine 内 panic 无法被调用方 recover，数据库瞬时抖动等于必崩进程。
+  - **components/monitor**（P0#10）：`collectDocker` 修复 result 切片从未 append，docker 监控恒返回空的功能失效。
+  - **验证**：`go build ./...` 与 `go vet ./...` 全绿（master 编译失败自 v0.2.6 起为既有基线，本次根治）；`go test -race` 对 cache/maps/algorithm/cat/es 通过；kafka/tar 测试包失败为外部环境依赖（本地无 broker、测试写死路径），属 E4 范畴下批处理。
+
 - **[2026-09-13] feat(cat/ext/log): 日志型 problem 的 type 改为 Errorf 调用点格式串（problem-type-log-format，发版建议 v0.5.1）**。feature/problem-type-log-format。problem 打点（measurement=problem）中 `log.Errorf` 路径的 type 此前恒为 `"error"` 兜底（logrus hook 只有格式化后的文本），告警只显示 type 无法定位源码。现 type 语义改为 **Errorf 调用点格式串**（编译期常量，天然有界、可聚合、可反查源码），可变细节（WithField 的 k=v）留在 message 做二级下钻：
   - **components/log**：新增导出常量 `ReservedProblemTypeField`（`"__problemType"`，log 与 ext 间的保留字段契约）；`Errorf`/`Fatalf`/`Panicf`（含 `Logger` 方法版）在调 logrus 前经 `WithField` 把格式串注入 entry.Data——logrus 级别序 Panic(0) < Fatal(1) < Error(2)，hook 的 `entry.Level <= ErrorLevel` 对三者统一走 error 级 problem 路径，故同口径注入（其他级别不打 problem 点位；`Error` 的无格式串形态没有调用点常量，走 hook 动态兜底）；业务调用方勿以 `"__problemType"` 作为 WithField key，字段会被 hook 吞掉。
   - **components/log customFormatter**：Data 输出循环跳过保留字段——兜住「使用了 customFormatter 但未注册 logHook」的配置，保证注入字段绝不进日志行（正常管线中 hook 消费后即删，formatter 本见不到该字段，此处为输出侧双保险）。

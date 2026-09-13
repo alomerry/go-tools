@@ -17,6 +17,9 @@ import (
 // 的 Watch() goroutine，会在测试进程中泄漏；同时它会从 apollo 拉取配置，这两点对测试
 // GetDB/GetConn 都无必要。当本机没有 MySQL 时，使用 `go test -short` 可跳过。
 func TestMySQLExtSuite(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	suite.Run(t, new(MySQLExtSuite))
 }
 

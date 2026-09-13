@@ -17,7 +17,10 @@ const (
 )
 
 func TestGenRedisKey(t *testing.T) {
-	client := NewRedisClient(url)
+	client, err := NewRedisClient(url)
+	if err != nil {
+		t.Skipf("invalid redis url %q: %v", url, err)
+	}
 	res := client.Get(context.TODO(), "whoami")
 	assert.NotNil(t, res)
 	assert.Equal(t, "homelab", res.Val())

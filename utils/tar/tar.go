@@ -10,8 +10,18 @@ import (
 	"strings"
 )
 
-func UnTar(src, dst string) error {
-	// 首先检查文件是否存在和大小
+// safeTargetPath 校验归档条目名不会逃逸出目标目录（Zip Slip 路径遍历，
+// 如 ../../.ssh/authorized_keys），逃逸或校验失败时返回错误。
+func safeTargetPath(targetDir, name string) (string, error) {
+	targetPath := filepath.Join(targetDir, name)
+	rel, err := filepath.Rel(targetDir, targetPath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("illegal archive entry path (path traversal): %s", name)
+	}
+	return targetPath, nil
+}
+
+func UnTar(src, dst string) error {	// 首先检查文件是否存在和大小
 	_, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -66,7 +76,10 @@ func extractTarGz(filename, targetDir string) error {
 		}
 
 		// 处理文件路径
-		targetPath := filepath.Join(targetDir, header.Name)
+		targetPath, err := safeTargetPath(targetDir, header.Name)
+		if err != nil {
+			return err
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -177,7 +190,10 @@ func extractTar(filename, targetDir string) error {
 		}
 
 		// 处理文件路径
-		targetPath := filepath.Join(targetDir, header.Name)
+		targetPath, err := safeTargetPath(targetDir, header.Name)
+		if err != nil {
+			return err
+		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:

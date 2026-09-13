@@ -1,6 +1,7 @@
 package collect
 
 import (
+	"context"
 	"fmt"
   "testing"
   "time"
@@ -12,6 +13,9 @@ import (
 )
 
 func TestAgentUsage(t*testing.T) {
+	if testing.Short() {
+		t.Skip("demo loop test; run without -short to enable")
+	}
 	// 创建一个简单的上报函数，将数据打印到控制台
 	reporter := func(stats *monitor.SystemStats) error {
 		fmt.Printf("系统监控数据:\n")
@@ -63,19 +67,21 @@ func TestAgentUsage(t*testing.T) {
 }
 
 func TestCustomCollector(t*testing.T) {
+	if testing.Short() {
+		t.Skip("demo loop test; run without -short to enable")
+	}
 	// 自定义收集器，可以收集任何你想要的数据
-	customCollector := func() (*monitor.SystemStats, error) {
+	customCollector := func(ctx context.Context) (*monitor.SystemStats, error) {
 		// 调用默认收集器获取基础系统信息
-		stats, err := monitor2.CollectStats()
+		statsList, err := monitor2.CollectStats(ctx)
 		if err != nil {
 			return nil, err
 		}
+		if len(statsList) == 0 {
+			return nil, fmt.Errorf("collector returned no stats")
+		}
 
-		// 可以在这里添加自定义数据，例如：
-		// stats.CustomField = "自定义数据"
-		// 由于SystemStats结构体没有导出字段，我们可以创建一个包装结构体
-
-		return stats, nil
+		return statsList[0], nil
 	}
 
 	// 自定义上报函数
@@ -104,6 +110,9 @@ func TestCustomCollector(t*testing.T) {
 }
 
 func TestAgentWithContext(t*testing.T) {
+	if testing.Short() {
+		t.Skip("demo loop test; run without -short to enable")
+	}
 	// 创建上报函数
 	reporter := func(stats *monitor.SystemStats) error {
 		// 上报逻辑
@@ -136,6 +145,9 @@ func TestAgentWithContext(t*testing.T) {
 }
 
 func TestAgentWithRemote(t*testing.T) {
+	if testing.Short() {
+		t.Skip("demo loop test; run without -short to enable")
+	}
   // 创建上报函数
   reporter := func(stats *monitor.SystemStats) error {
     // 上报逻辑

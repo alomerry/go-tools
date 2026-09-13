@@ -1,0 +1,43 @@
+# golangci-lint 配置。跑法：golangci-lint run
+# CI 暂不强制 lint 门禁（存量代码待渐进清理），本地建议提交前执行。
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    # 正确性
+    - govet
+    - staticcheck
+    - errcheck
+    - copyloopvar
+    # 可靠性
+    - misspell
+    - ineffassign
+    - unused
+  settings:
+    errcheck:
+      # 已知可安全忽略的写入型返回值
+      exclude-functions:
+        - (io.Closer).Close
+        - (net.Conn).Close
+        - (*github.com/redis/go-redis/v9.Client).Close
+    staticcheck:
+      checks: ["all", "-ST1000", "-ST1003", "-ST1005", "-SA1019"]
+  exclusions:
+    rules:
+      # 测试与生成代码从宽
+      - path: _test\.go
+        linters:
+          - errcheck
+      - path: \.pb\.go$
+        linters:
+          - errcheck
+          - staticcheck
+
+formatters:
+  default: none
+  enable:
+    - gofmt

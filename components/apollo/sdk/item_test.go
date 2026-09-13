@@ -3,13 +3,17 @@ package sdk
 import (
   "context"
   "testing"
-  
+
   "github.com/alomerry/go-tools/static/cons/apollo"
   "github.com/alomerry/go-tools/static/env"
+  "github.com/alomerry/go-tools/test"
   "github.com/stretchr/testify/assert"
 )
 
 func TestGetItem(t *testing.T) {
+  if !test.IntegrationEnabled() {
+    t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+  }
   var (
     ctx = context.TODO()
     req = fullInfo{
@@ -31,6 +35,9 @@ func TestGetItem(t *testing.T) {
 }
 
 func TestUpdateItem(t *testing.T) {
+  if !test.IntegrationEnabled() {
+    t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+  }
   var (
     ctx = context.TODO()
     req = fullInfo{

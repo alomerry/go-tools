@@ -35,7 +35,7 @@ type uploadReturnBody struct {
 func NewKodoClient(cfg model.Config) (meta.OSSClient, error) {
 	c := &client{
 		useSSL:     cfg.SSL,
-		bucketName: "alomerry",
+		bucketName: cfg.BucketName,
 	}
 
 	c.cred = credentials.NewCredentials(cfg.AccessKey, cfg.SecretKey)
@@ -52,6 +52,20 @@ func (q *client) UploadManager() *uploader.UploadManager {
 	}
 
 	return q.um
+}
+
+// DownloadManager 惰性初始化下载管理器（原实现 q.dm 从未初始化，
+// DownloadToFile 必 nil panic）
+func (q *client) DownloadManager() *downloader.DownloadManager {
+	if q.dm == nil {
+		q.dm = downloader.NewDownloadManager(&downloader.DownloadManagerOptions{
+			Options: http_client.Options{
+				Credentials: q.cred,
+				Regions:     region.GetRegionByID("z0", q.useSSL),
+			}})
+	}
+
+	return q.dm
 }
 
 func (q *client) PutObject(ctx context.Context, objectKey string, reader io.Reader, _ int64) error {
@@ -80,7 +94,7 @@ func (q *client) DownloadToFile(ctx context.Context, objectKey string) (string, 
 		return "", err
 	}
 
-	downloaded, err := q.dm.DownloadToFile(
+	downloaded, err := q.DownloadManager().DownloadToFile(
 		ctx,
 		objectKey,
 		tmpFileName,

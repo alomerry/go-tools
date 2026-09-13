@@ -47,8 +47,12 @@ func (s *RedisExtSuite) SetupSuite() {
 	}
 
 	// 手动构造 ext 实例并注入真实客户端。有意不调用 Init()：它会从 apollo 拉取配置。
+	client, err := redis.NewRedisClient(url)
+	if err != nil {
+		s.T().Fatalf("invalid redis url: %v", err)
+	}
 	s.ext = &RedisExtension{
-		redis: redis.NewRedisClient(url),
+		redis: client,
 	}
 }
 

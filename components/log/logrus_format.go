@@ -24,7 +24,8 @@ var (
 
 func (c *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	var (
-		buffer = *entry.Buffer
+		// 必须用指针：按值拷贝 bytes.Buffer 后写入拷贝会绕开 pool 状态
+		buffer = entry.Buffer
 
 		module  = "-"
 		traceId = trace.GetTraceId(entry.Context, "-")
@@ -45,8 +46,9 @@ func (c *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		traceId = xid.New().String()
 	}
 
-	_, _ = fmt.Fprintf(&buffer, "[%s]•[%s]•[%s]:[%s]",
-		entry.Time.Format(time2.Readable),
+	_, _ = fmt.Fprintf(buffer, "[%s]•[%s]•[%s]:[%s]",
+		// 统一上海时区输出（容器内多为 UTC，d8 曾加载后未使用导致日志差 8h）
+		entry.Time.In(d8).Format(time2.Readable),
 		strings.ToUpper(entry.Level.String()),
 		module,
 		traceId,
@@ -58,14 +60,14 @@ func (c *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		if key == ReservedProblemTypeField {
 			continue
 		}
-		_, _ = fmt.Fprintf(&buffer, "[%s:%v]", key, value)
+		_, _ = fmt.Fprintf(buffer, "[%s:%v]", key, value)
 	}
 
 	// 保证日志条目只占一行：将消息中的换行、回车替换为转义字符
 	msg := strings.ReplaceAll(entry.Message, "\r\n", "\\n")
 	msg = strings.ReplaceAll(msg, "\n", "\\n")
 	msg = strings.ReplaceAll(msg, "\r", "\\r")
-	_, _ = fmt.Fprintf(&buffer, "%s", msg)
+	_, _ = fmt.Fprintf(buffer, "%s", msg)
 	// 统一追加单个换行作为日志条目的结尾
 	buffer.WriteString("\n")
 

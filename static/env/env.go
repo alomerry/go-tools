@@ -47,12 +47,23 @@ func GetRustfsSecretKey() string {
 	return os.Getenv(cons.RustFsSecretKey)
 }
 
+// GetElasticSearchAK 优先读 ELASTICSEARCH_API_KEY，兼容旧变量名
+// ELASTICSEARCH_PASSWORD（历史命名与语义不符）
 func GetElasticSearchAK() string {
+	if v := os.Getenv("ELASTICSEARCH_API_KEY"); v != "" {
+		return v
+	}
 	return os.Getenv(cons.ELASTICSEARCH_PASSWORD)
 }
 
+// Debug 宽松解析 DEBUG 环境变量：1/true/debug（大小写不敏感）均视为开启
+// （原实现要求 DEBUG=DEBUG 精确匹配，true/1 不生效）
 func Debug() bool {
-	return os.Getenv(cons.DEBUG) == cons.DEBUG
+	switch strings.ToLower(os.Getenv(cons.DEBUG)) {
+	case "1", "true", "debug":
+		return true
+	}
+	return false
 }
 
 func Local() bool {

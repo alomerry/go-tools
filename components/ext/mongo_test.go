@@ -18,6 +18,9 @@ import (
 // *mongo.Mongo 客户端，绕过 Init()，因此不依赖 apollo。当本机没有 MongoDB 时，
 // 使用 `go test -short` 可跳过这些集成测试。
 func TestMongoExtSuite(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	suite.Run(t, new(MongoExtSuite))
 }
 

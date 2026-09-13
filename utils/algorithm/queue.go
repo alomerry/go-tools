@@ -1,7 +1,6 @@
 package algorithm
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,7 +26,7 @@ type Queue[T QueueType, K any] struct {
 	size     int64
 	duration time.Duration
 	tick     *time.Ticker
-	ctx      context.Context
+	ticking  bool
 	lock     sync.RWMutex
 	gCounts  int32
 }
@@ -45,8 +44,15 @@ func WithRemoveTicker(duration time.Duration) QueueOption {
 	}
 }
 
+// Instance 初始化队列。修复：原实现把 tick/duration 写到局部新对象 qq 之外
+// 的 receiver 上而返回 qq，WithRemoveTicker 完全失效；现直接在 receiver 上
+// 初始化并返回自身，零值 Queue 亦可直接 Instance。
 func (q *Queue[T, K]) Instance(opts ...QueueOption) *Queue[T, K] {
-	qq := Queue[T, K]{m: make(map[T]int)}
+	q.lock.Lock()
+	defer q.lock.Unlock()
+	if q.m == nil {
+		q.m = make(map[T]int)
+	}
 	qOpts := new(QueueOptions)
 	for _, opt := range opts {
 		opt(qOpts)
@@ -56,8 +62,7 @@ func (q *Queue[T, K]) Instance(opts ...QueueOption) *Queue[T, K] {
 		q.duration = qOpts.duration
 		q.tick = qOpts.tick
 	}
-	q.lock = sync.RWMutex{}
-	return &qq
+	return q
 }
 
 func (q *Queue[T, K]) Enqueue(key T, item K) {
@@ -77,30 +82,25 @@ func (q *Queue[T, K]) Enqueue(key T, item K) {
 	}
 	q.size++
 
-	if q.tick != nil {
-		if _, ok := q.ctx.Deadline(); ok {
-			q.ctx = context.Background()
-			go q.dequeueByTick()
-		}
+	// 定时清理 goroutine 仅启动一次（原实现经未初始化的 ctx.Deadline() 判断，
+	// nil context 必 panic 且从未生效）
+	if q.tick != nil && !q.ticking {
+		q.ticking = true
+		go q.dequeueByTick()
 	}
 	q.lock.Unlock()
 }
 
 func (q *Queue[T, K]) dequeueByTick() {
 	atomic.AddInt32(&q.gCounts, 1)
+	defer atomic.AddInt32(&q.gCounts, -1)
 	q.tick.Reset(q.duration)
-	for {
-		select {
-		case <-q.tick.C:
-			q.Dequeue()
-		}
-
+	for range q.tick.C {
+		q.Dequeue()
 		if q.Size() == 0 {
-			break
+			return
 		}
 	}
-	q.ctx.Done()
-	atomic.AddInt32(&q.gCounts, -1)
 }
 
 func (q *Queue[T, K]) Dequeue() K {

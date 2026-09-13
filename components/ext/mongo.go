@@ -2,6 +2,7 @@ package ext
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 
@@ -56,12 +57,12 @@ func NewMongoExt() Ext {
 func (m *MongoExt) Init(ctx context.Context) error {
 	d, err := apollo.GetJson[MongoExtConfig](apollo2.ApolloKeyMongoCfg)
 	if err != nil {
-		log.Panicf("init mongodb failed %v", err.Error())
+		return fmt.Errorf("init mongodb failed: %w", err)
 	}
 	m.cfg = d.Load()
 	m.cli, err = mongo.NewMongoClient(ctx, env.GetMongoDSN(m.cfg.Uri))
 	if err != nil {
-		log.Panicf("create mongodb client failed %v", err.Error())
+		return fmt.Errorf("create mongodb client failed: %w", err)
 	}
 	return nil
 }
@@ -122,6 +123,9 @@ func (m *MongoExt) FindPageWithSort(ctx context.Context, collectionName string, 
 	if err != nil {
 		return 0, err
 	}
+	// Count 失败提前返回时也须释放 cursor（原路径泄漏）
+	defer cursor.Close(ctx)
+
 	total, err := m.Count(ctx, collectionName, selector)
 	if err != nil {
 		return 0, err

@@ -17,6 +17,9 @@ func (c *ConcurrentMap[K, V]) Get(key K) (V, bool) {
 func (c *ConcurrentMap[K, V]) Set(key K, value V) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.m == nil {
+		c.m = make(map[K]V)
+	}
 	c.m[key] = value
 }
 

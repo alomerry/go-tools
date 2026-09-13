@@ -113,7 +113,8 @@ func withTagOrField(k string, v any) func(any) {
 		case *meta:
 			return
 		default:
-			logrus.Errorf("not support option type: %T", v)
+			// 目标容器类型不支持，打 m 的类型（原打 v 的类型会误导排查）
+			logrus.Errorf("not support option type: %T", m)
 			return
 		}
 
@@ -123,7 +124,9 @@ func withTagOrField(k string, v any) func(any) {
 		switch v.(type) {
 		case string:
 			m1.Tags[k] = v.(string)
-		case int64, float64, uint64, float32, uint32, int32:
+		case int, int8, int16, int32, int64,
+			uint, uint8, uint16, uint32, uint64,
+			float32, float64, bool:
 			m1.Fields[k] = v
 		}
 	}

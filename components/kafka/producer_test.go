@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -10,6 +11,15 @@ import (
 )
 
 func TestCreateMessage(t *testing.T) {
+	// 与 admin_client_test 同款探测：无本地 broker 时跳过集成测试
+	for _, addr := range []string{"localhost:9391", "localhost:9392", "localhost:9393"} {
+		if conn, err := net.DialTimeout("tcp", addr, time.Second); err == nil {
+			_ = conn.Close()
+			break
+		}
+		t.Skipf("kafka broker %s unreachable, skip integration test", addr)
+	}
+
 	var (
 		topic  = "test-topic"
 		ctx    = context.TODO()

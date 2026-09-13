@@ -19,6 +19,9 @@ var (
 )
 
 func TestMongoSuit(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	memberSuite := new(MongoSuit)
 
 	suite.Run(t, memberSuite)

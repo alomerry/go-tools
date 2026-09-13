@@ -3,17 +3,22 @@ package notify_test
 import (
 	"context"
 	"testing"
-  
-  "github.com/alomerry/go-tools/components/apollo"
-  "github.com/alomerry/go-tools/components/notify"
+
+	"github.com/alomerry/go-tools/components/apollo"
+	"github.com/alomerry/go-tools/components/notify"
 	_ "github.com/alomerry/go-tools/components/notify/drivers/bark"    // 注册 bark 驱动
 	_ "github.com/alomerry/go-tools/components/notify/drivers/console" // 注册 console 驱动
 	_ "github.com/alomerry/go-tools/components/notify/drivers/kook"    // 注册 kook 驱动
-  notify2 "github.com/alomerry/go-tools/static/cons/notify"
+	notify2 "github.com/alomerry/go-tools/static/cons/notify"
+	"github.com/alomerry/go-tools/test"
 )
 
+// TestManager 依赖真实 Apollo 集群（Init 连接失败即 panic），集成开关控制
 func TestManager(t *testing.T) {
-  apollo.Init("homelab", "backend")
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
+	apollo.Init("homelab", "backend")
 	// 1. 创建管理器
 	mgr := notify.NewManager()
 

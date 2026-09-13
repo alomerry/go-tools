@@ -73,7 +73,11 @@ func (r *restyClient) Post(ctx context.Context, url string, opts ...req.Opt) (Re
 	}
 
 	result, err := request.Post(url)
-	return &restyResponse{result}, err
+	if err != nil {
+		// err 非 nil 时 result 可能为 nil，包装成非 nil 接口会让调用方误判可用
+		return nil, err
+	}
+	return &restyResponse{result}, nil
 }
 
 func (r *restyClient) Get(ctx context.Context, url string, opts ...req.Opt) (Response, error) {
@@ -85,7 +89,10 @@ func (r *restyClient) Get(ctx context.Context, url string, opts ...req.Opt) (Res
 	}
 
 	result, err := request.Get(url)
-	return &restyResponse{result}, err
+	if err != nil {
+		return nil, err
+	}
+	return &restyResponse{result}, nil
 }
 
 func (r *restyClient) Close(ctx context.Context) error {

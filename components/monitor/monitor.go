@@ -71,6 +71,18 @@ func NewSystemMonitor(opts ...func(*option)) SystemMonitor {
 		opt(options)
 	}
 
+	// 默认值兜底：未传 WithContext 时 opt.ctx 为 nil（Done() panic）、
+	// 未传 WithInterval 时 NewTicker(0) panic
+	if options.ctx == nil {
+		options.ctx = context.Background()
+	}
+	if options.interval <= 0 {
+		options.interval = 30 * time.Second
+	}
+	if options.category == "" {
+		options.category = SystemMonitorCategoryHost
+	}
+
 	return &systemMonitor{
 		opt:  options,
 		once: sync.Once{},
@@ -186,7 +198,8 @@ func collectHost(ctx context.Context) (*monitor.SystemStats, error) {
 			usage, err := disk.Usage(part.Mountpoint)
 			if err == nil {
 				stats.DiskUsage[part.Mountpoint] = usage.UsedPercent
-				logrus.Infof("磁盘使用率: %s: %.2f%%", part.Mountpoint, usage.UsedPercent)
+				// 热路径（每轮采集）降为 Debug，避免正常采集刷 Info 日志
+				logrus.Debugf("磁盘使用率: %s: %.2f%%", part.Mountpoint, usage.UsedPercent)
 			}
 		}
 	}
@@ -259,9 +272,15 @@ func collectDocker(ctx context.Context) ([]*monitor.SystemStats, error) {
 			stats.TotalMemory = res.MemLimitInBytes
 			stats.CachedMemory = res.Cache
 			stats.UsedMemory = res.MemUsageInBytes
-			stats.MemoryUsage = float64(res.MemUsageInBytes)/float64(res.MemLimitInBytes)
+			// cgroup limit 可能为 0（非 cgroup 环境未配置限制），除零产生 NaN
+			// 会导致下游 json.Marshal 报错
+			if res.MemLimitInBytes > 0 {
+				stats.MemoryUsage = float64(res.MemUsageInBytes) / float64(res.MemLimitInBytes)
+			}
 			stats.RssMemory = res.RSS
 		}
+
+		result = append(result, stats)
 	}
 
 	return result, nil

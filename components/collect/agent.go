@@ -34,7 +34,7 @@ type Agent struct {
   
   // 配置选项
   interval     time.Duration
-  collector    func() (*monitor.SystemStats, error)
+  collector    func(context.Context) (*monitor.SystemStats, error)
   reporter     func(*monitor.SystemStats) error
   onError      func(error)
   startTime    time.Time
@@ -57,7 +57,7 @@ func WithInterval(interval time.Duration) Option {
 
 // WithCollector 设置自定义数据收集函数
 // 如果不设置，将使用默认的 monitor.CollectStats
-func WithCollector(collector func() (*monitor.SystemStats, error)) Option {
+func WithCollector(collector func(context.Context) (*monitor.SystemStats, error)) Option {
   return func(a *Agent) {
     if collector != nil {
       a.collector = collector
@@ -98,9 +98,18 @@ func NewAgent(opts ...Option) (*Agent, error) {
     opt(agent)
   }
   
-  // 设置默认收集器
+  // 设置默认收集器：CollectStats 返回切片，host 类别恒为单元素，取首个
   if agent.collector == nil {
-    agent.collector = monitor2.CollectStats
+    agent.collector = func(ctx context.Context) (*monitor.SystemStats, error) {
+      stats, err := monitor2.CollectStats(ctx)
+      if err != nil {
+        return nil, err
+      }
+      if len(stats) == 0 {
+        return nil, &AgentError{message: "collector returned no stats"}
+      }
+      return stats[0], nil
+    }
   }
   
   // 验证必需选项
@@ -189,7 +198,7 @@ func (a *Agent) run() {
 // collectAndReport 收集并上报数据
 func (a *Agent) collectAndReport() {
   startTime := time.Now()
-  stats, err := a.collector()
+  stats, err := a.collector(a.ctx)
   if err != nil {
     a.handleError(err)
     return

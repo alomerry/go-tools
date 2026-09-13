@@ -1,9 +1,5 @@
 package algorithm
 
-import (
-	"reflect"
-)
-
 type SetType interface {
 	~string | ~int | ~uint32 | ~int64
 }
@@ -98,10 +94,16 @@ func (s *Set[T]) InsertAll(val ...T) *Set[T] {
 }
 
 func (s *Set[T]) Remove(val T) {
+	if s == nil {
+		return
+	}
 	delete(s.set, val)
 }
 
 func (s *Set[T]) Has(val T) bool {
+	if s == nil {
+		return false
+	}
 	_, exists := s.set[val]
 	return exists
 }
@@ -127,6 +129,8 @@ func (s *Set[T]) ToArray() []T {
 
 func (s *Set[T]) Clone() *Set[T] {
 	result := Set[T]{make(map[T]struct{}, s.Size())}
-	reflect.Copy(reflect.ValueOf(s), reflect.ValueOf(&result))
+	for k := range s.set {
+		result.set[k] = struct{}{}
+	}
 	return &result
 }

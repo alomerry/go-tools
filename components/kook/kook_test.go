@@ -7,10 +7,15 @@ import (
 	"github.com/alomerry/go-tools/components/kook/client"
 	"github.com/alomerry/go-tools/components/kook/model"
 	"github.com/alomerry/go-tools/static/env"
+	"github.com/alomerry/go-tools/test"
 	"github.com/stretchr/testify/assert"
 )
 
+// TestChannelAPI 依赖真实 Kook 服务与写死的频道 ID，集成开关控制
 func TestChannelAPI(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	t.Run("case1", func(t *testing.T) {
 		cli := client.NewClient(client.WithToken(env.GetKookToken()))
 		resp, err := cli.ChannelService.View(context.TODO(), "7505882067043210", false)
@@ -20,6 +25,9 @@ func TestChannelAPI(t *testing.T) {
 }
 
 func TestMessageAPI(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
 	t.Run("case1", func(t *testing.T) {
 		cli := client.NewClient(client.WithToken(env.GetKookToken()))
 		resp, err := cli.MessageService.Create(context.TODO(), model.CreateMessageRequest{

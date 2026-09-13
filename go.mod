@@ -190,5 +190,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/ahmetb/gen-crd-api-reference-docs => github.com/ahmetb/gen-crd-api-reference-docs v0.3.1-0.20251203005356-667b167b2ade
