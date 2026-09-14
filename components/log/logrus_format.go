@@ -19,8 +19,17 @@ type customFormatter struct {
 }
 
 var (
-	d8, _ = time.LoadLocation("Asia/Shanghai")
+	d8 *time.Location
 )
+
+func init() {
+	var err error
+	d8, err = time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		logrus.Errorf("init time.LoadLocation err: %v", err)
+		d8 = time.FixedZone("CST", 8*60*60)
+	}
+}
 
 func (c *customFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	var (

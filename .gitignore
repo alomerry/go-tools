@@ -35,3 +35,5 @@ tmp
 custom_checker
 coverage.out
 coverage.html
+
+check-go-versions.sh
