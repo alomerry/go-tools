@@ -18,6 +18,30 @@ func WithFields(fields logrus.Fields) Logger {
 	return Logger{logrus.WithFields(fields)}
 }
 
+// WithError 把 err 挂到 entry.Data["error"]，不进 Errorf 的 format/args；nil 时不注入字段。
+func WithError(err error) Logger {
+	if err == nil {
+		return Logger{logrus.WithFields(logrus.Fields{})}
+	}
+	return Logger{logrus.WithError(err)}
+}
+
+// Logger 须由包级 With* 构造（先 With 后 Errorf，Errorf 返回 void 无法再链）。
+func (l Logger) WithField(key string, value interface{}) Logger {
+	return Logger{l.Entry.WithField(key, value)}
+}
+
+func (l Logger) WithFields(fields logrus.Fields) Logger {
+	return Logger{l.Entry.WithFields(fields)}
+}
+
+func (l Logger) WithError(err error) Logger {
+	if err == nil {
+		return l
+	}
+	return Logger{l.Entry.WithError(err)}
+}
+
 func (l Logger) Info(ctx context.Context, args ...any) {
 	l.WithContext(ctx).Info(args...)
 }
@@ -46,10 +70,8 @@ func (l Logger) Warnf(ctx context.Context, format string, args ...any) {
 	l.WithContext(ctx).Warnf(format, args...)
 }
 
-// Errorf/Panicf/Fatalf 与普通 logrus 调用无差异：ext logHook 侧 problem type
-// 直接取 logrus 已按参数格式化的 entry.Message（带参占位符必然被展开），级别序
-// Panic(0) < Fatal(1) < Error(2)，hook 的 entry.Level <= ErrorLevel 对三者统一
-// 走 error 级 problem 路径；Info/Warn 不打 problem 点位。
+// 低基数规范：format 只传稳定常量，可变细节走 WithField/WithError
+// （如 log.WithError(err).WithField("path", p).Errorf(ctx, "not found")）；老调用（format 带变量）仍按 logrus 语义展开。
 func (l Logger) Errorf(ctx context.Context, format string, args ...any) {
 	l.WithContext(ctx).Errorf(format, args...)
 }

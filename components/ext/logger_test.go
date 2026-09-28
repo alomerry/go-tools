@@ -2,6 +2,7 @@ package ext
 
 import (
 	"context"
+	"io"
 	"testing"
 
 	"github.com/alomerry/go-tools/components/log"
@@ -9,9 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// problemCall 捕获 reportProblem（cat.LogErrorWithType 出口）的 type 入参。
+// problemCall 捕获 reportProblem（cat.LogErrorWithType 出口）的入参。
 type problemCall struct {
-	typ string
+	typ    string
+	extras []string
 }
 
 // installProblemRecorder 以 reportProblem 包级变量为 seam 捕获 problem 打点，
@@ -21,8 +23,8 @@ func installProblemRecorder(t *testing.T) *[]problemCall {
 	t.Helper()
 	calls := &[]problemCall{}
 	orig := reportProblem
-	reportProblem = func(_ context.Context, typ string, _ error, _ ...string) {
-		*calls = append(*calls, problemCall{typ: typ})
+	reportProblem = func(_ context.Context, typ string, _ error, extras ...string) {
+		*calls = append(*calls, problemCall{typ: typ, extras: append([]string(nil), extras...)})
 	}
 	t.Cleanup(func() { reportProblem = orig })
 	return calls
@@ -42,12 +44,8 @@ func installLogHook(t *testing.T) {
 		std.Hooks, std.Out = origHooks, origOut
 	})
 	logrus.AddHook(logHook{})
-	logrus.SetOutput(&nopWriter{})
+	logrus.SetOutput(io.Discard)
 }
-
-type nopWriter struct{}
-
-func (nopWriter) Write(p []byte) (int, error) { return len(p), nil }
 
 // TestLogHookProblemTypeIsFormattedMessage 验证 problem type 新语义：统一取
 // logrus 已按调用点参数格式化的 entry.Message（真实 logrus 调用驱动），带参与
@@ -90,5 +88,43 @@ func TestLogHookNonErrorSkipsProblem(t *testing.T) {
 
 	if len(*calls) != 0 {
 		t.Fatalf("non-error level should not report problem, got %+v", *calls)
+	}
+}
+
+// TestLogHookStableTypeLowCardinality 验证新形态低基数：N 个不同 path 共用
+// 稳定常量 format 时只产生 1 个 type 序列，可变细节进 extras/message 下钻。
+func TestLogHookStableTypeLowCardinality(t *testing.T) {
+	t.Setenv(cons.ENV, "prod")
+	calls := installProblemRecorder(t)
+	installLogHook(t)
+
+	ctx := context.Background()
+	paths := []string{"/ping1", "/ping2", "/ping3"}
+	for _, p := range paths {
+		log.WithError(context.DeadlineExceeded).WithField("method", "GET").WithField("path", p).Errorf(ctx, "not found")
+	}
+
+	if len(*calls) != len(paths) {
+		t.Fatalf("captured %d problem calls, want %d: %+v", len(*calls), len(paths), *calls)
+	}
+	types := map[string]struct{}{}
+	for i, c := range *calls {
+		types[c.typ] = struct{}{}
+		if c.typ != "not found" {
+			t.Fatalf("call[%d] type = %q, want stable %q", i, c.typ, "not found")
+		}
+		// 详情必须下钻：extras 含 method/path/error（顺序不定，按集合断言）。
+		got := map[string]struct{}{}
+		for _, e := range c.extras {
+			got[e] = struct{}{}
+		}
+		for _, want := range []string{"method=GET", "path=" + paths[i], "error=" + context.DeadlineExceeded.Error()} {
+			if _, ok := got[want]; !ok {
+				t.Fatalf("call[%d] extras = %v, missing %q", i, c.extras, want)
+			}
+		}
+	}
+	if len(types) != 1 {
+		t.Fatalf("N paths produced %d types %v, want 1", len(types), types)
 	}
 }
