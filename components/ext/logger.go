@@ -58,11 +58,7 @@ func (logHook) Fire(entry *logrus.Entry) error {
 	}
 
 	if entry.Level <= logrus.ErrorLevel {
-		// type 统一取 entry.Message：logrus 已按调用点参数完成占位符格式化
-		// （Errorf("not found: %s", path) → "not found: GET /ping"），带参与无参
-		// 形态同一路径，告警侧展示真实日志文本而非未展开的 %s 格式串。注意
-		// type 为动态文本（如 404 的任意 path 会产生新 tag），InfluxDB 序列基数
-		// 由 cat 侧 maxProblemType 截断与调用方约束兜底，属已接受的取舍。
+		// problem type 取 entry.Message（logrus 已格式化）；低基数靠调用方传稳定常量，可变细节走 WithField/WithError 进 extras。
 		reportProblem(entry.Context, entry.Message, errors.New(entry.Message), extra...)
 		return nil
 	}

@@ -1,5 +1,8 @@
 # 更新日志
 
+- **[2026-09-28] feat(log/ext): 结构化 Errorf——新增 WithError/builder 链与稳定常量 type 规范（log-structured-errorf，发版建议 minor）**。`components/log` 新增包级 `WithError(err)`（nil 安全）与 `Logger` 方法版 `WithField/WithFields/WithError`（先 With 后 Errorf 的 builder 链）；`components/ext` logHook 保持 `type=entry.Message`，不选方案 B（保留字段注入 format：v0.5.3 可读性回退 + 重引 v0.5.1 已删复杂度）。用法：`log.WithError(err).WithField("path",p).Errorf(ctx,"not found")`——N 个不同 path 只产生 1 个 type 序列，详情经 `entry.Data` 进 extras 下钻；homelab-backend 首批迁移 `openapi/middleware/auth.go、handler.go`、`proto/gatewayErrorHandler.go` 共 6 行。
+
+
 - **[2026-09-13] fix(alert): problem 打点 type 改用格式化后的日志文本，修复「not found: %s %s」未格式化占位符透出 kook 告警（alert-notify-optimize）**。logHook 层 problem type 统一取 logrus 已按调用点参数格式化的 `entry.Message`（如 `not found: GET /ping1`），带参 `Errorf/Fatalf/Panicf` 调用点零改动统一生效，无参形态同一路径；type 截断（maxProblemType）与换行归一化逻辑保留于 cat 侧，空文本仍由 fallbackProblemType 兜底。取舍：type 由编译期格式串常量变为动态日志文本（扫描器任意 404 path 会产生新序列），InfluxDB tag 基数风险已确认为接受项。随语义变更清理冗余的 `ReservedProblemTypeField` 机制：删除 `components/log` 的保留字段常量与 Errorf/Panicf/Fatalf 注入（回归普通 logrus 调用）、custom formatter 的跳过分支及对应注入口径测试；`components/ext` 的 logHook 改为直取 `entry.Message`，problem 出口收敛为包级 `reportProblem` seam（生产固定指向 `cat.LogErrorWithType`，仅单测注入捕获）。单测覆盖带参格式化、无参 Error/Fatal/Panic、空文本兜底与非 error 级别不打点位。
   验证：`go build ./...`、`go vet ./components/log/... ./components/ext/...` 通过；`go test -count=1 ./...` 全部包 ok；触碰文件 gofmt 干净。
 
