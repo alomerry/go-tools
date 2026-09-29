@@ -146,6 +146,28 @@ func (c *CloudflareR2) RemoveBucket(ctx context.Context, bucketName string) erro
 	return errors.New("not implemented")
 }
 
+func (c *CloudflareR2) ListBuckets(ctx context.Context) ([]meta.Bucket, error) {
+	// R2 与 S3 兼容，ListBuckets 返回账户下全部桶（R2 无分页语义，一次全量返回）
+	output, err := c.client.ListBuckets(ctx, &s3.ListBucketsInput{})
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]meta.Bucket, 0, len(output.Buckets))
+	for _, bucket := range output.Buckets {
+		results = append(results, meta.Bucket{
+			Name:         aws.ToString(bucket.Name),
+			CreationDate: aws.ToTime(bucket.CreationDate),
+		})
+	}
+	return results, nil
+}
+
+func (c *CloudflareR2) ListObjectsPage(ctx context.Context, bucketName string, prefix string, continuationToken string, recursive bool, maxKeys int32) (meta.ObjectPage, error) {
+	// 与 RustFs 共用 ListObjectsV2 单页语义（rust_fs.go listObjectsV2Page）
+	return listObjectsV2Page(ctx, c.client, bucketName, prefix, continuationToken, recursive, maxKeys)
+}
+
 func (c *CloudflareR2) Bucket(_ context.Context, bucketName string) meta.OSSClient {
 	return &CloudflareR2{
 		client: c.client,

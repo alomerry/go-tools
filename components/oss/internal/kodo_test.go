@@ -1,21 +1,21 @@
 package internal
 
 import (
-  "context"
-  "os"
-  "testing"
-  "time"
-  
-  "github.com/alomerry/go-tools/model"
+	"context"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/alomerry/go-tools/model"
 	"github.com/alomerry/go-tools/test"
-  "github.com/alomerry/go-tools/utils/random"
-  
-  "github.com/alomerry/go-tools/static/env/oss"
+	"github.com/alomerry/go-tools/utils/random"
+
+	"github.com/alomerry/go-tools/static/env/oss"
 )
 
 var (
-  kodoTestCfg = model.Config{
-    Type: model.ClientTypeKodo,
+	kodoTestCfg = model.Config{
+		Type:      model.ClientTypeKodo,
 		Endpoint:  oss.KodoCdnDomain(),
 		AccessKey: oss.KodoAccessKey(),
 		SecretKey: oss.KodoSecretKey(),
@@ -37,8 +37,8 @@ func TestKodoClient_PutObject(t *testing.T) {
 		t.Fatalf("Failed to open file: %v", err)
 	}
 	defer file.Close()
-  
-  client, err := NewKodoClient(kodoTestCfg)
+
+	client, err := NewKodoClient(kodoTestCfg)
 	if err != nil {
 		t.Fatalf("Failed to create kodo client: %v", err)
 	}
@@ -49,4 +49,23 @@ func TestKodoClient_PutObject(t *testing.T) {
 	}
 
 	t.Logf("Object %s uploaded successfully", objectKey)
+}
+
+func TestKodoClient_ListBuckets(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
+	client, err := NewKodoClient(kodoTestCfg)
+	if err != nil {
+		t.Fatalf("Failed to create kodo client: %v", err)
+	}
+
+	buckets, err := client.ListBuckets(context.Background())
+	if err != nil {
+		t.Fatalf("Failed to list buckets: %v", err)
+	}
+
+	for _, bucket := range buckets {
+		t.Logf("Bucket %s created at %s", bucket.Name, bucket.CreationDate)
+	}
 }

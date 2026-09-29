@@ -26,7 +26,8 @@ func NewMinioClient(cfg model.Config) (meta.OSSClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("MinIO 客户端已连接: %#v\n", client)
+	// 仅打印 endpoint：%#v 会展开客户端结构体（含凭据字段），禁止入日志
+	log.Printf("MinIO client connected: %s", cfg.Endpoint)
 	return &minioClient{
 		client:     client,
 		bucketName: cfg.BucketName,
@@ -111,4 +112,27 @@ func (m *minioClient) ListObjects(ctx context.Context, bucketName string, prefix
 
 func (m *minioClient) RemoveBucket(ctx context.Context, bucketName string) error {
 	return m.client.RemoveBucket(ctx, bucketName)
+}
+
+func (m *minioClient) ListBuckets(ctx context.Context) ([]meta.Bucket, error) {
+	buckets, err := m.client.ListBuckets(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]meta.Bucket, 0, len(buckets))
+	for _, bucket := range buckets {
+		results = append(results, meta.Bucket{
+			Name:         bucket.Name,
+			CreationDate: bucket.CreationDate,
+		})
+	}
+	return results, nil
+}
+
+// ListObjectsPage 暂未实现：minio-go 不透传 continuation-token，StartAfter
+// 词法续传近似会让 token 语义退化泄漏进接口，当前无调用方（deck 分页列举只走
+// rustfs/r2），需要时再按 S3 原生分页补齐。
+func (m *minioClient) ListObjectsPage(ctx context.Context, bucketName string, prefix string, continuationToken string, recursive bool, maxKeys int32) (meta.ObjectPage, error) {
+	return meta.ObjectPage{}, errors.New("not implemented")
 }

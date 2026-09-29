@@ -234,6 +234,77 @@ func (r *RustFs) RemoveBucket(ctx context.Context, bucketName string) error {
 	return err
 }
 
+func (r *RustFs) ListBuckets(ctx context.Context) ([]meta.Bucket, error) {
+	paginator := s3.NewListBucketsPaginator(r.client, &s3.ListBucketsInput{})
+	results := make([]meta.Bucket, 0)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, bucket := range page.Buckets {
+			results = append(results, meta.Bucket{
+				Name:         aws.ToString(bucket.Name),
+				CreationDate: aws.ToTime(bucket.CreationDate),
+			})
+		}
+	}
+	return results, nil
+}
+
+func (r *RustFs) ListObjectsPage(ctx context.Context, bucketName string, prefix string, continuationToken string, recursive bool, maxKeys int32) (meta.ObjectPage, error) {
+	// 与 R2 共用 ListObjectsV2 单页语义（见 listObjectsV2Page）
+	return listObjectsV2Page(ctx, r.client, bucketName, prefix, continuationToken, recursive, maxKeys)
+}
+
+// listObjectsV2Page 执行一次 ListObjectsV2 单页调用：continuationToken/
+// maxKeys 原样透传，非 recursive 时 delimiter="/"，CommonPrefixes 映射为
+// DirPrefixes，NextContinuationToken 为空表示没有更多页。RustFs 与 R2 共用。
+func listObjectsV2Page(ctx context.Context, client *s3.Client, bucketName string, prefix string, continuationToken string, recursive bool, maxKeys int32) (meta.ObjectPage, error) {
+	input := &s3.ListObjectsV2Input{
+		Bucket: &bucketName,
+	}
+	if prefix != "" {
+		input.Prefix = &prefix
+	}
+	if continuationToken != "" {
+		input.ContinuationToken = &continuationToken
+	}
+	if maxKeys > 0 {
+		input.MaxKeys = &maxKeys
+	}
+	if !recursive {
+		delim := "/"
+		input.Delimiter = &delim
+	}
+
+	output, err := client.ListObjectsV2(ctx, input)
+	if err != nil {
+		return meta.ObjectPage{}, err
+	}
+
+	page := meta.ObjectPage{
+		Objects:     make([]meta.ObjectInfo, 0, len(output.Contents)),
+		DirPrefixes: make([]string, 0, len(output.CommonPrefixes)),
+	}
+	for _, obj := range output.Contents {
+		info := meta.ObjectInfo{
+			Key:          aws.ToString(obj.Key),
+			Size:         aws.ToInt64(obj.Size),
+			LastModified: aws.ToTime(obj.LastModified),
+		}
+		if obj.ETag != nil {
+			info.ETag = *obj.ETag
+		}
+		page.Objects = append(page.Objects, info)
+	}
+	for _, cp := range output.CommonPrefixes {
+		page.DirPrefixes = append(page.DirPrefixes, aws.ToString(cp.Prefix))
+	}
+	page.NextToken = aws.ToString(output.NextContinuationToken)
+	return page, nil
+}
+
 // Bucket returns a new RustFs bound to the given bucket, sharing the same S3
 // client. The returned client operates only on that bucket for the
 // object-level methods (PutObject/GetObject/...); bucket-level methods

@@ -45,3 +45,23 @@ func TestCloudflareR2_DownloadToFileByCloudflareR2(t *testing.T) {
 	assert.Greater(t, len(filePath), 0)
 	t.Log(filePath)
 }
+
+func TestCloudflareR2_ListBuckets(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
+	oss, err := newCloudflareR2(
+		env.GetCloudflareAccountId(),
+		env.GetCloudflareR2AccountKey(),
+		env.GetCloudflareR2AccountSK(),
+	)
+	assert.Nil(t, err)
+	assert.NotNil(t, oss)
+
+	buckets, err := oss.ListBuckets(context.TODO())
+	assert.Nil(t, err)
+	assert.NotNil(t, buckets)
+	for _, bucket := range buckets {
+		t.Logf("Bucket %s created at %s", bucket.Name, bucket.CreationDate)
+	}
+}

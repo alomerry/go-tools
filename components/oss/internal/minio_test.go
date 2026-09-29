@@ -1,15 +1,15 @@
 package internal
 
 import (
-  "context"
-  "io"
-  "strings"
-  "testing"
-  "time"
-  
-  "github.com/alomerry/go-tools/model"
-  "github.com/alomerry/go-tools/static/env/oss"
-  "github.com/alomerry/go-tools/test"
+	"context"
+	"io"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/alomerry/go-tools/model"
+	"github.com/alomerry/go-tools/static/env/oss"
+	"github.com/alomerry/go-tools/test"
 )
 
 var (
@@ -226,4 +226,25 @@ func TestMinioClient_RemoveBucket(t *testing.T) {
 	}
 
 	t.Logf("Bucket %s removed successfully", "test-bucket")
+}
+
+func TestMinioClient_ListBuckets(t *testing.T) {
+	if !test.IntegrationEnabled() {
+		t.Skip("integration test; set GO_TOOLS_TEST_INTEGRATION=1 to enable")
+	}
+	testCfg.SSL = false
+
+	client, err := NewMinioClient(testCfg)
+	if err != nil {
+		t.Fatalf("Failed to create minio client: %v", err)
+	}
+
+	buckets, err := client.ListBuckets(context.Background())
+	if err != nil {
+		t.Fatalf("Failed to list buckets: %v", err)
+	}
+
+	for _, bucket := range buckets {
+		t.Logf("Bucket %s created at %s", bucket.Name, bucket.CreationDate)
+	}
 }
