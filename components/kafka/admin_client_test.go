@@ -78,6 +78,43 @@ func TestAdminClientConsumerGroupLagEmpty(t *testing.T) {
 	assert.Empty(t, lag.Partitions)
 }
 
+// TestParseTopicConfigValues 覆盖方案A拍板的具名字段提取：minISR/compression/
+// cleanupPolicy/retentionBytes；缺失与非法值退化零值不阻断；retention.bytes
+// "-1"（无上限）原样透出。
+func TestParseTopicConfigValues(t *testing.T) {
+	minISR, compression, cleanup, retentionBytes := parseTopicConfigValues(map[string]string{
+		"min.insync.replicas": "2",
+		"compression.type":    "lz4",
+		"cleanup.policy":      "delete",
+		"retention.bytes":     "1073741824",
+	})
+	assert.Equal(t, 2, minISR)
+	assert.Equal(t, "lz4", compression)
+	assert.Equal(t, "delete", cleanup)
+	assert.Equal(t, int64(1073741824), retentionBytes)
+
+	minISR, compression, cleanup, retentionBytes = parseTopicConfigValues(map[string]string{
+		"retention.bytes": "-1",
+	})
+	assert.Equal(t, 0, minISR)
+	assert.Equal(t, "", compression)
+	assert.Equal(t, "", cleanup)
+	assert.Equal(t, int64(-1), retentionBytes)
+
+	minISR, _, _, retentionBytes = parseTopicConfigValues(map[string]string{
+		"min.insync.replicas": "not-a-number",
+		"retention.bytes":     "xx",
+	})
+	assert.Equal(t, 0, minISR)
+	assert.Equal(t, int64(0), retentionBytes)
+
+	minISR, compression, cleanup, retentionBytes = parseTopicConfigValues(nil)
+	assert.Equal(t, 0, minISR)
+	assert.Equal(t, "", compression)
+	assert.Equal(t, "", cleanup)
+	assert.Equal(t, int64(0), retentionBytes)
+}
+
 // TestAdminClientCreateDeleteTopicAndReadLatest 覆盖：创建 topic → 写入消息 →
 // 消息采样读回 → 删除 topic 的完整链路。
 func TestAdminClientCreateDeleteTopicAndReadLatest(t *testing.T) {
