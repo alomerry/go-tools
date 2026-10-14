@@ -73,6 +73,14 @@ type TopicMeta struct {
 	ReplicationFactor int
 	RetentionMs       int64
 	SegmentBytes      int64
+	// MinISR 为 min.insync.replicas（写入确认的最小同步副本数），缺省 0=未知。
+	MinISR int
+	// Compression 为 compression.type（producer/none/lz4/zstd/...），缺省空=未知。
+	Compression string
+	// CleanupPolicy 为 cleanup.policy（delete/compact/...），缺省空=未知。
+	CleanupPolicy string
+	// RetentionBytes 为 retention.bytes（-1 表示无大小上限），缺省 0=未知。
+	RetentionBytes int64
 	// MessageCount 为消息量估算：各分区 logEndOffset-logStartOffset 求和。
 	MessageCount int64
 }
@@ -117,11 +125,88 @@ func (a *AdminClient) ListTopics(ctx context.Context) ([]TopicMeta, error) {
 		if entries := configs[name]; entries != nil {
 			meta.RetentionMs, _ = strconv.ParseInt(entries["retention.ms"], 10, 64)
 			meta.SegmentBytes, _ = strconv.ParseInt(entries["segment.bytes"], 10, 64)
+			meta.MinISR, meta.Compression, meta.CleanupPolicy, meta.RetentionBytes = parseTopicConfigValues(entries)
 		}
 		topics = append(topics, meta)
 	}
 	sort.Slice(topics, func(i, j int) bool { return topics[i].Name < topics[j].Name })
 	return topics, nil
+}
+
+// parseTopicConfigValues 从 DescribeConfigs 全量配置中提取方案A拍板的具名
+// 字段：min.insync.replicas / compression.type / cleanup.policy /
+// retention.bytes。纯函数，便于单测；缺失/非法值退化为零值（未知），不阻断
+// 列表返回（与 retention.ms/segment.bytes 的静默 _ 丢弃口径一致）。
+// retention.bytes 为 "-1" 表示无大小上限，原样透出由调用方渲染。
+func parseTopicConfigValues(entries map[string]string) (minISR int, compression, cleanupPolicy string, retentionBytes int64) {
+	if v, err := strconv.Atoi(entries["min.insync.replicas"]); err == nil {
+		minISR = v
+	}
+	compression = entries["compression.type"]
+	cleanupPolicy = entries["cleanup.policy"]
+	retentionBytes, _ = strconv.ParseInt(entries["retention.bytes"], 10, 64)
+	return minISR, compression, cleanupPolicy, retentionBytes
+}
+
+// BrokerMeta 描述集群中的单个 broker（来自 Metadata 响应）。
+type BrokerMeta struct {
+	ID   int
+	Host string
+	Port int
+	Rack string
+	// IsController 标记当前 controller broker（Metadata.Controller）。
+	IsController bool
+	// LeaderPartitions 为该 broker 担任 leader 的分区数（遍历 Metadata 全量
+	// topic 统计，含 __consumer_offsets 等内部 topic）。
+	LeaderPartitions int
+}
+
+// ClusterMeta 描述集群级概览：broker 拓扑 + topic/分片总数。
+type ClusterMeta struct {
+	// ClusterID 为集群名（Metadata.ClusterID，kraft 集群可能为空）。
+	ClusterID      string
+	Brokers        []BrokerMeta
+	TopicCount     int
+	PartitionCount int
+}
+
+// DescribeCluster 返回集群概览：broker 列表（含 controller 标记与各 broker
+// 的 leader 分区数）+ 非内部 topic/分片总数。单次 Metadata 往返完成。
+func (a *AdminClient) DescribeCluster(ctx context.Context) (*ClusterMeta, error) {
+	md, err := a.client.Metadata(ctx, &kafka.MetadataRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("kafka admin client: describe cluster failed: %w", err)
+	}
+
+	meta := &ClusterMeta{ClusterID: md.ClusterID}
+	byID := make(map[int]*BrokerMeta, len(md.Brokers))
+	for _, b := range md.Brokers {
+		byID[b.ID] = &BrokerMeta{
+			ID:           b.ID,
+			Host:         b.Host,
+			Port:         b.Port,
+			Rack:         b.Rack,
+			IsController: b.ID == md.Controller.ID,
+		}
+	}
+	for _, t := range md.Topics {
+		if t.Internal {
+			continue
+		}
+		meta.TopicCount++
+		meta.PartitionCount += len(t.Partitions)
+		for _, p := range t.Partitions {
+			if b, ok := byID[p.Leader.ID]; ok {
+				b.LeaderPartitions++
+			}
+		}
+	}
+	meta.Brokers = make([]BrokerMeta, 0, len(byID))
+	for _, b := range byID {
+		meta.Brokers = append(meta.Brokers, *b)
+	}
+	sort.Slice(meta.Brokers, func(i, j int) bool { return meta.Brokers[i].ID < meta.Brokers[j].ID })
+	return meta, nil
 }
 
 // topicConfigs 批量拉取各 topic 的配置项（无 ConfigNames 表示返回全部配置）。
