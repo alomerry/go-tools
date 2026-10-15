@@ -1,5 +1,14 @@
 # 更新日志
 
+- **[2026-10-15] fix(service-git-page): Step3+Step3b 审查修复——转义/host 熔断/体上限/单行 snippet（发版建议 patch）**。`components/git`：Q10 `BuildURL` 转义（path 按段 `PathEscape` 保留段间 `/`，ref/owner/repo/commit 单段 `PathEscape`，host 主机名不转义）；Q11/S2 host 空 fail-closed（`doFetch` 前置校验，未配 host 直接明确失败，不构造残缺 URL，`Fetch` 不被调用）；S5 响应体 2MB 上限（超限直接失败，不解析不缓存）；S4 非 2xx 改结构化 `*UpstreamError{StatusCode, Snippet}`（`UpstreamStatusCode(err)` 供后端按码映射，网络/参数错返回 0）；S6 `snippet` 先 `\n\r→空格` 再截断（错误文案/日志单行化，防日志注入）。存量单测补 `Host`（fail-closed 后无 host 即拒）；新增 4 例（段转义/host 熔断/体上限/状态码提取 + 单行断言）。
+  验证：`go build ./...`、`go vet ./components/git/`、`go test -count=1 ./components/git/` 全绿。
+
+- **[2026-10-15] refactor(service-git-page): git SDK ponytail 精简——解析合一 + 取数合一 + 单测减负（发版建议 patch）**。github/gitee 返回同形，删 gitee 四 struct + 四 parse，`parseFile/parseTree/parseHistory/parseBranches` 共用一套（gitee 目录查返回 `[` 数组的前置判定保留在 `parseFile` 头）；`normalizePage` 未导出双函数合一为 `NormalizedPage` 直接实现；`GetFile/Tree/History/Branches` 前导 `checkProvider + fetch` 抽 `doFetch(ctx,q,tmpl) → body`；删模型 trivial 单测 1 例（`TestIsSupportedProvider`，纯三断言，覆盖由后端缺省单测间接承担）。
+  验证：`go build/vet/test ./components/git/` 全绿（13 例）。
+
+- **[2026-10-15] feat(service-git-page): git 只读浏览统一 SDK + GitItemConfig 四路径模板（发版建议 minor）**。`model/apollo`: `GitItemConfig` 新增 `filePath/treePath/historyPath/branchesPath` 四个上游路径模板（占位符 `{host}/{owner}/{repo}/{ref}/{path}/{commit}/{page}/{page_size}`，空模板 = 该 provider 不支持对应能力）；新增 `components/git`：对外 `GetFile/GetTree/History/Branches`（`Query{Provider,Host,Token,Owner,Repo,Ref,Path,Commit,Page,PageSize}`，token/host 由调用方从 apollo `GitCfg().Providers` 取入，本包不直连 apollo），内部分 github/gitee 双实现解析（file base64 解码 + `encoding=="none"` 二进制透出、`type=="dir"`/数组形态明确报错指引用 tree 接口、tree 按 path 排序、history/branches 跳过空 sha 条目），`Fetch` 变量化可桩；HTTP 非 2xx 携带状态码失败、空 body 失败（复用 check_service_git 空 sha 教训：gitee 限流 403 + 错误 JSON 不得静默产出空快照）；分页缺省 1/20、上限 100（`NormalizedPage` 导出供后端回显同口径）。
+  验证：`go build/vet/test ./components/git/` 全绿（14 例：双 provider 解析/排序/截断形态/403 与网络错/缺省分页 URL/坏参）。
+
 - **[2026-10-14] refactor(kafka-overview-a): Step 2b 精简——删除 ClusterMeta Version/ConnectionCount P2 占位（发版建议 patch）**。ponytail 跨仓 YAGNI：两字段恒零、无消费者、无渲染价值，`ClusterMeta` 收敛为 `{ClusterID,Brokers,TopicCount,PartitionCount}`；P2 到来时再加（additive）。`parseTopicConfigValues`、`DescribeCluster` 本体不动。
   验证：`go build ./...`、`go vet ./components/kafka/`、`go test -count=1 ./components/kafka/` 全绿。
 
