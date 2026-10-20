@@ -113,15 +113,17 @@ func TestGetTreeTypeMapping(t *testing.T) {
 	entries, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "gitee.com", Owner: "o", Repo: "r"}, "https://h/x")
 	require.NoError(t, err)
 	require.Len(t, entries, 5)
-	// 排序：唯一目录 docs（tree）在前，其余按 path 字典序。
-	assert.Equal(t, "docs", entries[0].Path)
-	assert.Equal(t, "tree", entries[0].Type)
-	assert.Equal(t, "README.md", entries[1].Path)
-	assert.Equal(t, "blob", entries[1].Type)
-	assert.Equal(t, "sub", entries[3].Path)
-	assert.Equal(t, "commit", entries[3].Type)
-	assert.Equal(t, "weird", entries[4].Path)
-	assert.Equal(t, "fancy", entries[4].Type)
+	// 排序位次由 TestGetTreeSorts 单独钉；此处按 path 查找只断言类型映射，
+	// 不重复钉排序（同一逻辑两处断言，改排序需改两处）。
+	byPath := make(map[string]string, len(entries))
+	for _, e := range entries {
+		byPath[e.Path] = e.Type
+	}
+	assert.Equal(t, "tree", byPath["docs"])
+	assert.Equal(t, "blob", byPath["README.md"])
+	assert.Equal(t, "blob", byPath["lnk"])
+	assert.Equal(t, "commit", byPath["sub"])
+	assert.Equal(t, "fancy", byPath["weird"])
 }
 
 func TestGetTreeNonArrayBody(t *testing.T) {
