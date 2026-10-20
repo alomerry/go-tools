@@ -87,19 +87,72 @@ func TestGetFileBadArgs(t *testing.T) {
 }
 
 func TestGetTreeSorts(t *testing.T) {
-	defer stubFetch(t, 200, `{"sha":"t","tree":[{"path":"b.go","type":"blob","sha":"2"},{"path":"a.go","type":"blob","sha":"1"},{"path":"","type":"blob","sha":""}]}`, nil)()
+	// 目录（dir→tree）在前，同组内按 path 字典序；空 sha/path 条目跳过；
+	// 上游 size=null 解码为零值。
+	defer stubFetch(t, 200, `[{"path":"b.go","type":"file","sha":"2","size":3},{"path":"dir","type":"dir","sha":"4","size":null},{"path":"a.go","type":"file","sha":"1","size":2},{"path":"","type":"file","sha":""}]`, nil)()
 	entries, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "github.com", Owner: "o", Repo: "r"}, "https://h/x")
 	require.NoError(t, err)
-	require.Len(t, entries, 2)
-	assert.Equal(t, "a.go", entries[0].Path)
-	assert.Equal(t, "b.go", entries[1].Path)
+	require.Len(t, entries, 3)
+	assert.Equal(t, "dir", entries[0].Path)
+	assert.Equal(t, "tree", entries[0].Type)
+	assert.Equal(t, "a.go", entries[1].Path)
+	assert.Equal(t, "blob", entries[1].Type)
+	assert.Equal(t, "b.go", entries[2].Path)
 }
 
-func TestGetTreeMissingField(t *testing.T) {
-	// 上游限流 403 已被 HTTP 状态校验拦截；此处覆盖 200 但形状不符（无 tree）。
+func TestGetTreeTypeMapping(t *testing.T) {
+	// contents type → git/trees 惯例：dir→tree、file/symlink→blob、
+	// submodule→commit、未知类型原样透传；path 取上游完整路径。
+	defer stubFetch(t, 200, `[
+		{"path":"docs","type":"dir","sha":"1","size":0},
+		{"path":"README.md","type":"file","sha":"2","size":10},
+		{"path":"lnk","type":"symlink","sha":"3","size":5},
+		{"path":"sub","type":"submodule","sha":"4","size":0},
+		{"path":"weird","type":"fancy","sha":"5","size":0}
+	]`, nil)()
+	entries, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "gitee.com", Owner: "o", Repo: "r"}, "https://h/x")
+	require.NoError(t, err)
+	require.Len(t, entries, 5)
+	// 排序：唯一目录 docs（tree）在前，其余按 path 字典序。
+	assert.Equal(t, "docs", entries[0].Path)
+	assert.Equal(t, "tree", entries[0].Type)
+	assert.Equal(t, "README.md", entries[1].Path)
+	assert.Equal(t, "blob", entries[1].Type)
+	assert.Equal(t, "sub", entries[3].Path)
+	assert.Equal(t, "commit", entries[3].Type)
+	assert.Equal(t, "weird", entries[4].Path)
+	assert.Equal(t, "fancy", entries[4].Type)
+}
+
+func TestGetTreeNonArrayBody(t *testing.T) {
+	// 上游限流 403 已被 HTTP 状态校验拦截；此处覆盖 200 但形状不符：把文件
+	// 路径传给 tree 模板时上游返回对象（与 parseFile 的数组前置判定对称）。
 	defer stubFetch(t, 200, `{"message":"oops"}`, nil)()
-	_, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "gitee.com", Owner: "o", Repo: "r"}, "https://h/x")
-	require.ErrorContains(t, err, "missing tree")
+	_, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "gitee.com", Owner: "o", Repo: "r", Path: "a.md"}, "https://h/x")
+	require.ErrorContains(t, err, "not a directory")
+	require.ErrorContains(t, err, "use file api")
+}
+
+func TestGetTreeEmptyDir(t *testing.T) {
+	// 空目录/（gitee 对不存在路径也）返回空数组：不报错，返回空条目。
+	defer stubFetch(t, 200, `[]`, nil)()
+	entries, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "github.com", Owner: "o", Repo: "r"}, "https://h/x")
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestBuildURLTreeRootPath(t *testing.T) {
+	// 根目录空 path：{path} 填空后模板自带尾斜杠，产物 ".../contents/?ref=master"。
+	// curl 实测（2026-10-20）github/gitee 对带尾斜杠与不带尾斜杠两种形态均
+	// 返回 200 数组，无需 BuildURL 特判；本用例钉死产物形态防回归。
+	q := Query{Host: "api.github.com", Owner: "o", Repo: "r", Ref: "master", Path: ""}
+	got := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	assert.Equal(t, "https://api.github.com/repos/o/r/contents/?ref=master", got)
+
+	// 子目录 path 原样拼接（完整路径，非递归语义由上游 contents API 承担）。
+	q.Path = "components/git"
+	got = BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	assert.Equal(t, "https://api.github.com/repos/o/r/contents/components/git?ref=master", got)
 }
 
 func TestGetHistoryGithub(t *testing.T) {

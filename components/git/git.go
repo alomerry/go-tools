@@ -1,6 +1,6 @@
 // Package git 是 git 页三段式只读浏览的统一 SDK（service-git-page）。
 //
-// 对外四个能力：GetFile（单文件内容）、GetTree（目录树）、
+// 对外四个能力：GetFile（单文件内容）、GetTree（目录直接子项，非递归）、
 // GetHistory（提交历史分页）、ListBranches（分支列表）。github/gitee
 // 两家返回形状同形（message/author 嵌套在 commit 下），解析共用一套
 // struct+parse，不再按 provider 双实现。token 与 host 由调用方从 apollo
@@ -91,7 +91,9 @@ type FileContent struct {
 	Truncated bool
 }
 
-// TreeEntry 树节点：Type 为 "blob"（文件）或 "tree"（目录）。
+// TreeEntry 树节点（目录单层直接子项）：Type 为 "tree"（目录）、"blob"
+// （文件/符号链接）或 "commit"（子模块），对齐 git/trees 惯例；未知类型
+// 原样透传。Path 为仓库相对完整路径（如 "lib/main.dart"）。
 type TreeEntry struct {
 	Path string
 	Type string
@@ -218,7 +220,9 @@ func GetFile(ctx context.Context, q Query, tmpl string) (*FileContent, error) {
 	return parseFile(body, q.Path)
 }
 
-// GetTree 取目录树（按 path 排序， deterministic 供展示/单测）。
+// GetTree 取 path 目录的直接子项（单层，非递归；path 为空即仓库根目录）。
+// 返回按 "tree"（目录）在前、再按 path 字典序的 deterministic 排序，供
+// 树形展示直接渲染（GitHub 同口径）。
 func GetTree(ctx context.Context, q Query, tmpl string) ([]TreeEntry, error) {
 	if q.Owner == "" || q.Repo == "" {
 		return nil, fmt.Errorf("owner/repo are required")
@@ -227,11 +231,16 @@ func GetTree(ctx context.Context, q Query, tmpl string) ([]TreeEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := parseTree(body)
+	entries, err := parseTree(body, q.Path)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
+	sort.Slice(entries, func(i, j int) bool {
+		if (entries[i].Type == "tree") != (entries[j].Type == "tree") {
+			return entries[i].Type == "tree"
+		}
+		return entries[i].Path < entries[j].Path
+	})
 	return entries, nil
 }
 
@@ -312,35 +321,53 @@ func parseFile(body []byte, path string) (*FileContent, error) {
 	return &FileContent{Path: path, Content: string(raw), Encoding: f.Encoding, Sha: f.Sha, Size: f.Size, Truncated: f.Truncated}, nil
 }
 
-type gitTree struct {
+type gitTreeEntry struct {
+	// Type 上游口径："file"/"dir"/"symlink"/"submodule"（github/gitee 同形）。
+	Type string `json:"type"`
+	// Size 目录条目可能为 null（gitee 实测），null 解码为零值不报错。
+	Size int64  `json:"size"`
 	Sha  string `json:"sha"`
-	Tree []struct {
-		Path string `json:"path"`
-		Type string `json:"type"`
-		Sha  string `json:"sha"`
-		Size int64  `json:"size"`
-	} `json:"tree"`
-	Truncated bool `json:"truncated"`
+	Path string `json:"path"`
 }
 
-func parseTree(body []byte) ([]TreeEntry, error) {
-	var t gitTree
-	if err := json.Unmarshal(body, &t); err != nil {
+// parseTree 解析 contents API 目录查询返回的 JSON 数组（github/gitee 同形）。
+// 类型映射对齐 git/trees 惯例：dir→tree、file→blob、symlink→blob、
+// submodule→commit，未知类型原样透传（上游新增类型不丢条目）。
+// 与 parseFile 的数组前置判定对称：body 为对象（如把文件路径传给了 tree
+// 模板）即明确报错，不静默产出零值快照。
+func parseTree(body []byte, path string) ([]TreeEntry, error) {
+	if len(body) > 0 && body[0] == '{' {
+		return nil, fmt.Errorf("path %s is not a directory, use file api", path)
+	}
+	var list []gitTreeEntry
+	if err := json.Unmarshal(body, &list); err != nil {
 		return nil, fmt.Errorf("parse git tree failed: %w", err)
 	}
-	if t.Tree == nil {
-		return nil, fmt.Errorf("parse git tree failed: missing tree field")
-	}
-	out := make([]TreeEntry, 0, len(t.Tree))
-	for _, e := range t.Tree {
-		// 空 sha 条目跳过（gitee 限流 403 + 错误 JSON 能过 unmarshal 但无 sha，
-		// 此处兜底；HTTP 状态校验是第一道防线）。
+	out := make([]TreeEntry, 0, len(list))
+	for _, e := range list {
+		// 空 sha/path 条目跳过（gitee 限流 403 + 错误 JSON 能过 unmarshal 但无
+		// sha，此处兜底；HTTP 状态校验是第一道防线）。
 		if e.Sha == "" || e.Path == "" {
 			continue
 		}
-		out = append(out, TreeEntry{Path: e.Path, Type: e.Type, Sha: e.Sha, Size: e.Size})
+		out = append(out, TreeEntry{Path: e.Path, Type: mapTreeEntryType(e.Type), Sha: e.Sha, Size: e.Size})
 	}
 	return out, nil
+}
+
+// mapTreeEntryType contents API 的 type → git/trees 惯例 type；
+// 未知类型原样透传。
+func mapTreeEntryType(t string) string {
+	switch t {
+	case "dir":
+		return "tree"
+	case "file", "symlink":
+		return "blob"
+	case "submodule":
+		return "commit"
+	default:
+		return t
+	}
 }
 
 type gitCommit struct {
