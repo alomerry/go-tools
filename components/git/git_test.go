@@ -23,12 +23,14 @@ func stubFetch(t *testing.T, code int, body string, err error) func() {
 
 func TestBuildURL(t *testing.T) {
 	q := Query{Host: "api.github.com", Owner: "o", Repo: "r", Ref: "master", Path: "a/b.md", Page: 0, PageSize: 0}
-	got := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}&page={page}&per_page={page_size}", q)
+	got, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}&page={page}&per_page={page_size}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.com/repos/o/r/contents/a/b.md?ref=master&page=1&per_page=20", got)
 
 	// page_size 上限 100。
 	q.Page, q.PageSize = 3, 500
-	got = BuildURL("{page}/{page_size}", q)
+	got, err = BuildURL("{page}/{page_size}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "3/100", got)
 }
 
@@ -87,19 +89,76 @@ func TestGetFileBadArgs(t *testing.T) {
 }
 
 func TestGetTreeSorts(t *testing.T) {
-	defer stubFetch(t, 200, `{"sha":"t","tree":[{"path":"b.go","type":"blob","sha":"2"},{"path":"a.go","type":"blob","sha":"1"},{"path":"","type":"blob","sha":""}]}`, nil)()
+	// 目录（dir→tree）在前，同组内按 path 字典序；空 sha/path 条目跳过；
+	// 上游 size=null 解码为零值。
+	defer stubFetch(t, 200, `[{"path":"b.go","type":"file","sha":"2","size":3},{"path":"dir","type":"dir","sha":"4","size":null},{"path":"a.go","type":"file","sha":"1","size":2},{"path":"","type":"file","sha":""}]`, nil)()
 	entries, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "github.com", Owner: "o", Repo: "r"}, "https://h/x")
 	require.NoError(t, err)
-	require.Len(t, entries, 2)
-	assert.Equal(t, "a.go", entries[0].Path)
-	assert.Equal(t, "b.go", entries[1].Path)
+	require.Len(t, entries, 3)
+	assert.Equal(t, "dir", entries[0].Path)
+	assert.Equal(t, "tree", entries[0].Type)
+	assert.Equal(t, "a.go", entries[1].Path)
+	assert.Equal(t, "blob", entries[1].Type)
+	assert.Equal(t, "b.go", entries[2].Path)
 }
 
-func TestGetTreeMissingField(t *testing.T) {
-	// 上游限流 403 已被 HTTP 状态校验拦截；此处覆盖 200 但形状不符（无 tree）。
+func TestGetTreeTypeMapping(t *testing.T) {
+	// contents type → git/trees 惯例：dir→tree、file/symlink→blob、
+	// submodule→commit、未知类型原样透传；path 取上游完整路径。
+	defer stubFetch(t, 200, `[
+		{"path":"docs","type":"dir","sha":"1","size":0},
+		{"path":"README.md","type":"file","sha":"2","size":10},
+		{"path":"lnk","type":"symlink","sha":"3","size":5},
+		{"path":"sub","type":"submodule","sha":"4","size":0},
+		{"path":"weird","type":"fancy","sha":"5","size":0}
+	]`, nil)()
+	entries, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "gitee.com", Owner: "o", Repo: "r"}, "https://h/x")
+	require.NoError(t, err)
+	require.Len(t, entries, 5)
+	// 排序位次由 TestGetTreeSorts 单独钉；此处按 path 查找只断言类型映射，
+	// 不重复钉排序（同一逻辑两处断言，改排序需改两处）。
+	byPath := make(map[string]string, len(entries))
+	for _, e := range entries {
+		byPath[e.Path] = e.Type
+	}
+	assert.Equal(t, "tree", byPath["docs"])
+	assert.Equal(t, "blob", byPath["README.md"])
+	assert.Equal(t, "blob", byPath["lnk"])
+	assert.Equal(t, "commit", byPath["sub"])
+	assert.Equal(t, "fancy", byPath["weird"])
+}
+
+func TestGetTreeNonArrayBody(t *testing.T) {
+	// 上游限流 403 已被 HTTP 状态校验拦截；此处覆盖 200 但形状不符：把文件
+	// 路径传给 tree 模板时上游返回对象（与 parseFile 的数组前置判定对称）。
 	defer stubFetch(t, 200, `{"message":"oops"}`, nil)()
-	_, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "gitee.com", Owner: "o", Repo: "r"}, "https://h/x")
-	require.ErrorContains(t, err, "missing tree")
+	_, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "gitee.com", Owner: "o", Repo: "r", Path: "a.md"}, "https://h/x")
+	require.ErrorContains(t, err, "not a directory")
+	require.ErrorContains(t, err, "use file api")
+}
+
+func TestGetTreeEmptyDir(t *testing.T) {
+	// 空目录/（gitee 对不存在路径也）返回空数组：不报错，返回空条目。
+	defer stubFetch(t, 200, `[]`, nil)()
+	entries, err := GetTree(context.Background(), Query{Host: "example.com", Provider: "github.com", Owner: "o", Repo: "r"}, "https://h/x")
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestBuildURLTreeRootPath(t *testing.T) {
+	// 根目录空 path：{path} 填空后模板自带尾斜杠，产物 ".../contents/?ref=master"。
+	// curl 实测（2026-10-20）github/gitee 对带尾斜杠与不带尾斜杠两种形态均
+	// 返回 200 数组，无需 BuildURL 特判；本用例钉死产物形态防回归。
+	q := Query{Host: "api.github.com", Owner: "o", Repo: "r", Ref: "master", Path: ""}
+	got, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.com/repos/o/r/contents/?ref=master", got)
+
+	// 子目录 path 原样拼接（完整路径，非递归语义由上游 contents API 承担）。
+	q.Path = "components/git"
+	got, err = BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.com/repos/o/r/contents/components/git?ref=master", got)
 }
 
 func TestGetHistoryGithub(t *testing.T) {
@@ -141,12 +200,46 @@ func TestBuildURLEscapesSegments(t *testing.T) {
 	// Q10：path 按段转义（段间 `/` 保留，段内空格/# 编码）；owner/repo/ref
 	// 单段转义；host 不转义。
 	q := Query{Host: "api.github.com", Owner: "my org", Repo: "r+e", Ref: "v1.0", Path: "my dir/f#1.md"}
-	got := BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q)
+	got, err := BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.com/my%20org/r+e/my%20dir/f%231.md?ref=v1.0", got)
 
 	// 空 path 不 panic、不多 `/`。
 	q = Query{Host: "h", Owner: "o", Repo: "r", Ref: "master", Path: ""}
-	assert.Equal(t, "https://h/o/r/?ref=master", BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q))
+	got, err = BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q)
+	require.NoError(t, err)
+	assert.Equal(t, "https://h/o/r/?ref=master", got)
+}
+
+func TestBuildURLRejectsDotSegments(t *testing.T) {
+	// F1：`url.PathEscape` 不改写 `.`/`..`，穿越段原样进 URL 由上游归一化
+	// 越出 `/contents/` 前缀（借服务端 token 盲探同 host 任意 GET 端点），
+	// 必须明确拒绝；段内特殊字符转义不回归由 TestBuildURLEscapesSegments 承担。
+	for _, p := range []string{"..", ".", "a/../b", "docs/..", "../../../user/emails"} {
+		_, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", Query{Host: "h", Owner: "o", Repo: "r", Ref: "master", Path: p})
+		require.ErrorContains(t, err, "invalid path segment", p)
+	}
+
+	// 空段（前导 `/`、`a//b`）不在 F1 范围，维持现状。
+	got, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", Query{Host: "h", Owner: "o", Repo: "r", Ref: "master", Path: "/a//b"})
+	require.NoError(t, err)
+	assert.Equal(t, "https://h/repos/o/r/contents//a//b?ref=master", got)
+}
+
+func TestGetTreeRejectsDotDotPath(t *testing.T) {
+	// F1 端到端：穿越路径在 BuildURL 即失败、Fetch 不发请求；错误沿既有
+	// 通路返回（非 *UpstreamError，后端落 Unavailable 固定文案，path 不回传）。
+	called := false
+	old := Fetch
+	Fetch = func(_ context.Context, _, _ string) (int, []byte, error) {
+		called = true
+		return 200, []byte(`[]`), nil
+	}
+	defer func() { Fetch = old }()
+
+	_, err := GetTree(context.Background(), Query{Provider: "github.com", Host: "example.com", Owner: "o", Repo: "r", Path: "../../../user/emails"}, "https://h/{path}")
+	require.ErrorContains(t, err, "invalid path segment")
+	assert.False(t, called)
 }
 
 func TestDoFetchHostEmptyFailClosed(t *testing.T) {

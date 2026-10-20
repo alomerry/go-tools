@@ -1,6 +1,6 @@
 // Package git 是 git 页三段式只读浏览的统一 SDK（service-git-page）。
 //
-// 对外四个能力：GetFile（单文件内容）、GetTree（目录树）、
+// 对外四个能力：GetFile（单文件内容）、GetTree（目录直接子项，非递归）、
 // GetHistory（提交历史分页）、ListBranches（分支列表）。github/gitee
 // 两家返回形状同形（message/author 嵌套在 commit 下），解析共用一套
 // struct+parse，不再按 provider 双实现。token 与 host 由调用方从 apollo
@@ -91,7 +91,9 @@ type FileContent struct {
 	Truncated bool
 }
 
-// TreeEntry 树节点：Type 为 "blob"（文件）或 "tree"（目录）。
+// TreeEntry 树节点（目录单层直接子项）：Type 为 "tree"（目录）、"blob"
+// （文件/符号链接）或 "commit"（子模块），对齐 git/trees 惯例；未知类型
+// 原样透传。Path 为仓库相对完整路径（如 "lib/main.dart"）。
 type TreeEntry struct {
 	Path string
 	Type string
@@ -133,30 +135,42 @@ func IsSupportedProvider(name string) bool {
 // pageSize 上限 100——SDK 直调同样受页大小约束，不依赖后端二次收敛。
 // 转义（Q10/S2）：path 按段 PathEscape（保留段间 `/`，段内空格等特殊字符
 // 编码）；ref/owner/repo/commit 为单段 PathEscape；host 为主机名不转义；
-// page/page_size 为归一化整数不转义。
-func BuildURL(tmpl string, q Query) string {
+// page/page_size 为归一化整数不转义。path 含 `.`/`..` 段时返回错误（F1），
+// 调用方（doFetch 及直调 BuildURL 者）不得忽略。
+func BuildURL(tmpl string, q Query) (string, error) {
 	page, pageSize := NormalizedPage(q.Page, q.PageSize)
+	path, err := escapeGitPath(q.Path)
+	if err != nil {
+		return "", err
+	}
 	r := strings.NewReplacer(
 		"{host}", q.Host,
 		"{owner}", url.PathEscape(q.Owner),
 		"{repo}", url.PathEscape(q.Repo),
 		"{ref}", url.PathEscape(q.Ref),
-		"{path}", escapeGitPath(q.Path),
+		"{path}", path,
 		"{commit}", url.PathEscape(q.Commit),
 		"{page}", strconv.Itoa(page),
 		"{page_size}", strconv.Itoa(pageSize),
 	)
-	return r.Replace(tmpl)
+	return r.Replace(tmpl), nil
 }
 
 // escapeGitPath 仓库相对路径按段转义：段间 `/` 原样保留，段内逐段
-// PathEscape（如空格→%20）。空串/首尾斜杠形态保持（Split/Join 自然语义）。
-func escapeGitPath(p string) string {
+// PathEscape（如空格→%20）。空串/首尾斜杠/连续斜杠（空段）形态保持
+// （Split/Join 自然语义，不在穿越防护范围）。
+// 穿越防护（F1）：`url.PathEscape` 对 `.`/`..` 原样返回，`a/../../x` 原样
+// 进 URL 后由上游按 RFC 归一化越出 `/contents/` 前缀，可借服务端 token
+// 盲探同 host 任意 GET 端点——任一段为 `.` 或 `..` 即明确拒绝。
+func escapeGitPath(p string) (string, error) {
 	parts := strings.Split(p, "/")
 	for i, s := range parts {
+		if s == "." || s == ".." {
+			return "", fmt.Errorf("invalid path segment %q", s)
+		}
 		parts[i] = url.PathEscape(s)
 	}
-	return strings.Join(parts, "/")
+	return strings.Join(parts, "/"), nil
 }
 
 // NormalizedPage 分页归一：page/pageSize<=0 时按缺省（1/20）填充，
@@ -190,7 +204,11 @@ func doFetch(ctx context.Context, q Query, tmpl string) ([]byte, error) {
 	if strings.TrimSpace(q.Host) == "" {
 		return nil, fmt.Errorf("git host is not configured for provider %s", q.Provider)
 	}
-	code, body, err := Fetch(ctx, BuildURL(tmpl, q), q.Token)
+	target, err := BuildURL(tmpl, q)
+	if err != nil {
+		return nil, err
+	}
+	code, body, err := Fetch(ctx, target, q.Token)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +236,9 @@ func GetFile(ctx context.Context, q Query, tmpl string) (*FileContent, error) {
 	return parseFile(body, q.Path)
 }
 
-// GetTree 取目录树（按 path 排序， deterministic 供展示/单测）。
+// GetTree 取 path 目录的直接子项（单层，非递归；path 为空即仓库根目录）。
+// 返回按 "tree"（目录）在前、再按 path 字典序的 deterministic 排序，供
+// 树形展示直接渲染（GitHub 同口径）。
 func GetTree(ctx context.Context, q Query, tmpl string) ([]TreeEntry, error) {
 	if q.Owner == "" || q.Repo == "" {
 		return nil, fmt.Errorf("owner/repo are required")
@@ -227,11 +247,16 @@ func GetTree(ctx context.Context, q Query, tmpl string) ([]TreeEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := parseTree(body)
+	entries, err := parseTree(body, q.Path)
 	if err != nil {
 		return nil, err
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
+	sort.Slice(entries, func(i, j int) bool {
+		if (entries[i].Type == "tree") != (entries[j].Type == "tree") {
+			return entries[i].Type == "tree"
+		}
+		return entries[i].Path < entries[j].Path
+	})
 	return entries, nil
 }
 
@@ -312,35 +337,53 @@ func parseFile(body []byte, path string) (*FileContent, error) {
 	return &FileContent{Path: path, Content: string(raw), Encoding: f.Encoding, Sha: f.Sha, Size: f.Size, Truncated: f.Truncated}, nil
 }
 
-type gitTree struct {
+type gitTreeEntry struct {
+	// Type 上游口径："file"/"dir"/"symlink"/"submodule"（github/gitee 同形）。
+	Type string `json:"type"`
+	// Size 目录条目可能为 null（gitee 实测），null 解码为零值不报错。
+	Size int64  `json:"size"`
 	Sha  string `json:"sha"`
-	Tree []struct {
-		Path string `json:"path"`
-		Type string `json:"type"`
-		Sha  string `json:"sha"`
-		Size int64  `json:"size"`
-	} `json:"tree"`
-	Truncated bool `json:"truncated"`
+	Path string `json:"path"`
 }
 
-func parseTree(body []byte) ([]TreeEntry, error) {
-	var t gitTree
-	if err := json.Unmarshal(body, &t); err != nil {
+// parseTree 解析 contents API 目录查询返回的 JSON 数组（github/gitee 同形）。
+// 类型映射对齐 git/trees 惯例：dir→tree、file→blob、symlink→blob、
+// submodule→commit，未知类型原样透传（上游新增类型不丢条目）。
+// 与 parseFile 的数组前置判定对称：body 为对象（如把文件路径传给了 tree
+// 模板）即明确报错，不静默产出零值快照。
+func parseTree(body []byte, path string) ([]TreeEntry, error) {
+	if len(body) > 0 && body[0] == '{' {
+		return nil, fmt.Errorf("path %s is not a directory, use file api", path)
+	}
+	var list []gitTreeEntry
+	if err := json.Unmarshal(body, &list); err != nil {
 		return nil, fmt.Errorf("parse git tree failed: %w", err)
 	}
-	if t.Tree == nil {
-		return nil, fmt.Errorf("parse git tree failed: missing tree field")
-	}
-	out := make([]TreeEntry, 0, len(t.Tree))
-	for _, e := range t.Tree {
-		// 空 sha 条目跳过（gitee 限流 403 + 错误 JSON 能过 unmarshal 但无 sha，
-		// 此处兜底；HTTP 状态校验是第一道防线）。
+	out := make([]TreeEntry, 0, len(list))
+	for _, e := range list {
+		// 空 sha/path 条目跳过（gitee 限流 403 + 错误 JSON 能过 unmarshal 但无
+		// sha，此处兜底；HTTP 状态校验是第一道防线）。
 		if e.Sha == "" || e.Path == "" {
 			continue
 		}
-		out = append(out, TreeEntry{Path: e.Path, Type: e.Type, Sha: e.Sha, Size: e.Size})
+		out = append(out, TreeEntry{Path: e.Path, Type: mapTreeEntryType(e.Type), Sha: e.Sha, Size: e.Size})
 	}
 	return out, nil
+}
+
+// mapTreeEntryType contents API 的 type → git/trees 惯例 type；
+// 未知类型原样透传。
+func mapTreeEntryType(t string) string {
+	switch t {
+	case "dir":
+		return "tree"
+	case "file", "symlink":
+		return "blob"
+	case "submodule":
+		return "commit"
+	default:
+		return t
+	}
 }
 
 type gitCommit struct {
