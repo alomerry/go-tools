@@ -135,30 +135,42 @@ func IsSupportedProvider(name string) bool {
 // pageSize 上限 100——SDK 直调同样受页大小约束，不依赖后端二次收敛。
 // 转义（Q10/S2）：path 按段 PathEscape（保留段间 `/`，段内空格等特殊字符
 // 编码）；ref/owner/repo/commit 为单段 PathEscape；host 为主机名不转义；
-// page/page_size 为归一化整数不转义。
-func BuildURL(tmpl string, q Query) string {
+// page/page_size 为归一化整数不转义。path 含 `.`/`..` 段时返回错误（F1），
+// 调用方（doFetch 及直调 BuildURL 者）不得忽略。
+func BuildURL(tmpl string, q Query) (string, error) {
 	page, pageSize := NormalizedPage(q.Page, q.PageSize)
+	path, err := escapeGitPath(q.Path)
+	if err != nil {
+		return "", err
+	}
 	r := strings.NewReplacer(
 		"{host}", q.Host,
 		"{owner}", url.PathEscape(q.Owner),
 		"{repo}", url.PathEscape(q.Repo),
 		"{ref}", url.PathEscape(q.Ref),
-		"{path}", escapeGitPath(q.Path),
+		"{path}", path,
 		"{commit}", url.PathEscape(q.Commit),
 		"{page}", strconv.Itoa(page),
 		"{page_size}", strconv.Itoa(pageSize),
 	)
-	return r.Replace(tmpl)
+	return r.Replace(tmpl), nil
 }
 
 // escapeGitPath 仓库相对路径按段转义：段间 `/` 原样保留，段内逐段
-// PathEscape（如空格→%20）。空串/首尾斜杠形态保持（Split/Join 自然语义）。
-func escapeGitPath(p string) string {
+// PathEscape（如空格→%20）。空串/首尾斜杠/连续斜杠（空段）形态保持
+// （Split/Join 自然语义，不在穿越防护范围）。
+// 穿越防护（F1）：`url.PathEscape` 对 `.`/`..` 原样返回，`a/../../x` 原样
+// 进 URL 后由上游按 RFC 归一化越出 `/contents/` 前缀，可借服务端 token
+// 盲探同 host 任意 GET 端点——任一段为 `.` 或 `..` 即明确拒绝。
+func escapeGitPath(p string) (string, error) {
 	parts := strings.Split(p, "/")
 	for i, s := range parts {
+		if s == "." || s == ".." {
+			return "", fmt.Errorf("invalid path segment %q", s)
+		}
 		parts[i] = url.PathEscape(s)
 	}
-	return strings.Join(parts, "/")
+	return strings.Join(parts, "/"), nil
 }
 
 // NormalizedPage 分页归一：page/pageSize<=0 时按缺省（1/20）填充，
@@ -192,7 +204,11 @@ func doFetch(ctx context.Context, q Query, tmpl string) ([]byte, error) {
 	if strings.TrimSpace(q.Host) == "" {
 		return nil, fmt.Errorf("git host is not configured for provider %s", q.Provider)
 	}
-	code, body, err := Fetch(ctx, BuildURL(tmpl, q), q.Token)
+	target, err := BuildURL(tmpl, q)
+	if err != nil {
+		return nil, err
+	}
+	code, body, err := Fetch(ctx, target, q.Token)
 	if err != nil {
 		return nil, err
 	}

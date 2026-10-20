@@ -23,12 +23,14 @@ func stubFetch(t *testing.T, code int, body string, err error) func() {
 
 func TestBuildURL(t *testing.T) {
 	q := Query{Host: "api.github.com", Owner: "o", Repo: "r", Ref: "master", Path: "a/b.md", Page: 0, PageSize: 0}
-	got := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}&page={page}&per_page={page_size}", q)
+	got, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}&page={page}&per_page={page_size}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.com/repos/o/r/contents/a/b.md?ref=master&page=1&per_page=20", got)
 
 	// page_size 上限 100。
 	q.Page, q.PageSize = 3, 500
-	got = BuildURL("{page}/{page_size}", q)
+	got, err = BuildURL("{page}/{page_size}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "3/100", got)
 }
 
@@ -148,12 +150,14 @@ func TestBuildURLTreeRootPath(t *testing.T) {
 	// curl 实测（2026-10-20）github/gitee 对带尾斜杠与不带尾斜杠两种形态均
 	// 返回 200 数组，无需 BuildURL 特判；本用例钉死产物形态防回归。
 	q := Query{Host: "api.github.com", Owner: "o", Repo: "r", Ref: "master", Path: ""}
-	got := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	got, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.com/repos/o/r/contents/?ref=master", got)
 
 	// 子目录 path 原样拼接（完整路径，非递归语义由上游 contents API 承担）。
 	q.Path = "components/git"
-	got = BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	got, err = BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.com/repos/o/r/contents/components/git?ref=master", got)
 }
 
@@ -196,12 +200,46 @@ func TestBuildURLEscapesSegments(t *testing.T) {
 	// Q10：path 按段转义（段间 `/` 保留，段内空格/# 编码）；owner/repo/ref
 	// 单段转义；host 不转义。
 	q := Query{Host: "api.github.com", Owner: "my org", Repo: "r+e", Ref: "v1.0", Path: "my dir/f#1.md"}
-	got := BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q)
+	got, err := BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q)
+	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.com/my%20org/r+e/my%20dir/f%231.md?ref=v1.0", got)
 
 	// 空 path 不 panic、不多 `/`。
 	q = Query{Host: "h", Owner: "o", Repo: "r", Ref: "master", Path: ""}
-	assert.Equal(t, "https://h/o/r/?ref=master", BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q))
+	got, err = BuildURL("https://{host}/{owner}/{repo}/{path}?ref={ref}", q)
+	require.NoError(t, err)
+	assert.Equal(t, "https://h/o/r/?ref=master", got)
+}
+
+func TestBuildURLRejectsDotSegments(t *testing.T) {
+	// F1：`url.PathEscape` 不改写 `.`/`..`，穿越段原样进 URL 由上游归一化
+	// 越出 `/contents/` 前缀（借服务端 token 盲探同 host 任意 GET 端点），
+	// 必须明确拒绝；段内特殊字符转义不回归由 TestBuildURLEscapesSegments 承担。
+	for _, p := range []string{"..", ".", "a/../b", "docs/..", "../../../user/emails"} {
+		_, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", Query{Host: "h", Owner: "o", Repo: "r", Ref: "master", Path: p})
+		require.ErrorContains(t, err, "invalid path segment", p)
+	}
+
+	// 空段（前导 `/`、`a//b`）不在 F1 范围，维持现状。
+	got, err := BuildURL("https://{host}/repos/{owner}/{repo}/contents/{path}?ref={ref}", Query{Host: "h", Owner: "o", Repo: "r", Ref: "master", Path: "/a//b"})
+	require.NoError(t, err)
+	assert.Equal(t, "https://h/repos/o/r/contents//a//b?ref=master", got)
+}
+
+func TestGetTreeRejectsDotDotPath(t *testing.T) {
+	// F1 端到端：穿越路径在 BuildURL 即失败、Fetch 不发请求；错误沿既有
+	// 通路返回（非 *UpstreamError，后端落 Unavailable 固定文案，path 不回传）。
+	called := false
+	old := Fetch
+	Fetch = func(_ context.Context, _, _ string) (int, []byte, error) {
+		called = true
+		return 200, []byte(`[]`), nil
+	}
+	defer func() { Fetch = old }()
+
+	_, err := GetTree(context.Background(), Query{Provider: "github.com", Host: "example.com", Owner: "o", Repo: "r", Path: "../../../user/emails"}, "https://h/{path}")
+	require.ErrorContains(t, err, "invalid path segment")
+	assert.False(t, called)
 }
 
 func TestDoFetchHostEmptyFailClosed(t *testing.T) {
