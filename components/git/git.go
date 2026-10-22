@@ -1,14 +1,21 @@
 // Package git 是 git 页三段式只读浏览的统一 SDK（service-git-page）。
 //
-// 对外四个能力：GetFile（单文件内容）、GetTree（目录直接子项，非递归）、
-// GetHistory（提交历史分页）、ListBranches（分支列表）。github/gitee
+// 对外四个浏览能力：GetFile（单文件内容）、GetTree（目录直接子项，非递归）、
+// GetHistory（提交历史分页）、ListBranches（分支列表）——github/gitee
 // 两家返回形状同形（message/author 嵌套在 commit 下），解析共用一套
 // struct+parse，不再按 provider 双实现。token 与 host 由调用方从 apollo
 // GitCfg().Providers 取出后传入——本包不直接依赖 apollo，方便单测与复用。
 //
-// URL 模板来自 GitItemConfig 的四个路径模板，占位符
-// {host}/{owner}/{repo}/{ref}/{path}/{commit}/{page}/{page_size} 由
-// BuildURL 填充。空模板 = 该 provider 不支持对应能力，直接返回明确错误。
+// webhook 能力（service-git-webhook，webhook.go）：ListHooks（hooks 配置
+// 列表，两家形状不同、按 provider 内部分派解析出同形 Hook）、
+// ListDeliveries（github 调用记录分页）、RedeliverDelivery（github 单条
+// 重发，POST）。后两能力 gitee v5 无对应 API，显式 provider 白名单。
+//
+// URL 模板来自 GitItemConfig 的路径模板（浏览四件 + hooksPath/
+// deliveriesPath/redeliverPath），占位符
+// {host}/{owner}/{repo}/{ref}/{path}/{commit}/{page}/{page_size}/
+// {hook_id}/{delivery_id} 由 BuildURL 填充。空模板 = 该 provider 不支持
+// 对应能力，直接返回明确错误。
 package git
 
 import (
@@ -75,8 +82,13 @@ type Query struct {
 	// Path 文件或目录路径（仓库相对路径）。
 	Path string
 	// Commit 历史过滤（可选，指定 commit 附近的记录）。
-	Commit   string
-	Page     int
+	Commit string
+	Page   int
+	// HookID / DeliveryID webhook 能力占位（ListDeliveries/RedeliverDelivery 用），
+	// 浏览四能力不消费。
+	HookID     int64
+	DeliveryID int64
+	// PageSize 分页大小。
 	PageSize int
 }
 
@@ -152,6 +164,9 @@ func BuildURL(tmpl string, q Query) (string, error) {
 		"{commit}", url.PathEscape(q.Commit),
 		"{page}", strconv.Itoa(page),
 		"{page_size}", strconv.Itoa(pageSize),
+		// webhook 能力占位：浏览模板不含这两占位符，填充无副作用。
+		"{hook_id}", strconv.FormatInt(q.HookID, 10),
+		"{delivery_id}", strconv.FormatInt(q.DeliveryID, 10),
 	)
 	return r.Replace(tmpl), nil
 }
