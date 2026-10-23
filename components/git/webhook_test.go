@@ -27,7 +27,6 @@ func TestListHooksGithub(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, hooks, 1)
 	assert.Equal(t, int64(1), hooks[0].ID)
-	assert.Equal(t, "web", hooks[0].Name)
 	assert.Equal(t, "https://example.com/hook", hooks[0].URL)
 	assert.True(t, hooks[0].Active)
 	assert.Equal(t, []string{"push", "pull_request"}, hooks[0].Events)
@@ -40,7 +39,6 @@ func TestListHooksGitee(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, hooks, 1)
 	assert.Equal(t, int64(42), hooks[0].ID)
-	assert.Equal(t, "webhook", hooks[0].Name)
 	assert.Equal(t, "https://example.com/gitee-hook", hooks[0].URL)
 	// gitee 无停用概念恒生效；事件由布尔位派生，false 位不出现在列表。
 	assert.True(t, hooks[0].Active)
@@ -60,12 +58,10 @@ func TestListDeliveriesGithub(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ds, 1)
 	assert.Equal(t, int64(7), ds[0].ID)
-	assert.Equal(t, "g-1", ds[0].GUID)
 	assert.Equal(t, "push", ds[0].Event)
 	assert.Equal(t, "published", ds[0].Action)
 	assert.Equal(t, "OK", ds[0].Status)
 	assert.Equal(t, 200, ds[0].StatusCode)
-	assert.Equal(t, 0.27, ds[0].DurationSeconds)
 	assert.False(t, ds[0].Redelivered)
 }
 
@@ -86,6 +82,11 @@ func TestListDeliveriesGiteeUnsupported(t *testing.T) {
 	// hook_id 缺失同样拒绝。
 	_, err = ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r"}, "https://h/x")
 	require.ErrorContains(t, err, "hook_id is required")
+
+	// 能力判定与白名单同源：github true，其余 false。
+	assert.True(t, SupportsDeliveries(ProviderGithub))
+	assert.False(t, SupportsDeliveries(ProviderGitee))
+	assert.False(t, SupportsDeliveries("gitlab.com"))
 }
 
 func TestRedeliverDelivery(t *testing.T) {
@@ -137,12 +138,6 @@ func TestRedeliverDeliveryBadArgs(t *testing.T) {
 	q.Provider = ProviderGithub
 	require.ErrorContains(t, RedeliverDelivery(context.Background(), q, ""), "no path template")
 	assert.False(t, called)
-}
-
-func TestSupportsDeliveries(t *testing.T) {
-	assert.True(t, SupportsDeliveries(ProviderGithub))
-	assert.False(t, SupportsDeliveries(ProviderGitee))
-	assert.False(t, SupportsDeliveries("gitlab.com"))
 }
 
 func TestBuildURLHookPlaceholders(t *testing.T) {

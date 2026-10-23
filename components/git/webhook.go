@@ -21,8 +21,6 @@ import (
 )
 
 // Hook webhook 配置条目（github/gitee 归一后同形）：
-//   - Name：github 为上游 name（repo hooks 恒为 "web"），gitee 无该字段固定
-//     "webhook"，仅展示用途，调用方不得做语义判断。
 //   - URL：webhook 目标地址（github config.url；gitee url）。
 //   - Active：是否生效。gitee v5 无停用概念恒 true；github 透传 active。
 //   - Events：触发事件名（github 透传 events 数组；gitee 由布尔位派生
@@ -30,7 +28,6 @@ import (
 //   - CreatedAt：创建时间原文字符串（两家时区/格式不同，不解析只透传）。
 type Hook struct {
 	ID        int64
-	Name      string
 	URL       string
 	Active    bool
 	Events    []string
@@ -38,18 +35,16 @@ type Hook struct {
 }
 
 // Delivery 单次 webhook 调用记录（github only）。Status 为上游原文（"OK" /
-// "failed to deliver" 等），StatusCode 为上游响应码；DurationSeconds 为上游
-// 耗时（秒）。ID 为数字 delivery id（重发入参），GUID 为事件唯一标识。
+// "failed to deliver" 等），StatusCode 为上游响应码。ID 为数字 delivery id
+// （重发入参）；上游 guid/duration 等展示性字段不透出（无消费场景）。
 type Delivery struct {
-	ID              int64
-	GUID            string
-	Event           string
-	Action          string
-	Status          string
-	StatusCode      int
-	DeliveredAt     string
-	Redelivered     bool
-	DurationSeconds float64
+	ID          int64
+	Event       string
+	Action      string
+	Status      string
+	StatusCode  int
+	DeliveredAt string
+	Redelivered bool
 }
 
 // PostFetch 单次 HTTP POST 取数（redeliver 专用，变量化以便单测桩替换）；
@@ -141,9 +136,8 @@ func RedeliverDelivery(ctx context.Context, q Query, tmpl string) error {
 // --- hooks 上游解析（github/gitee 形状不同，分派后各自一套 struct） ---
 
 type githubHook struct {
-	ID     int64  `json:"id"`
-	Name   string `json:"name"`
-	Active bool   `json:"active"`
+	ID     int64 `json:"id"`
+	Active bool  `json:"active"`
 	Config struct {
 		URL string `json:"url"`
 	} `json:"config"`
@@ -163,7 +157,7 @@ func parseGithubHooks(body []byte) ([]Hook, error) {
 		if h.ID == 0 {
 			continue
 		}
-		out = append(out, Hook{ID: h.ID, Name: h.Name, URL: h.Config.URL, Active: h.Active, Events: h.Events, CreatedAt: h.CreatedAt})
+		out = append(out, Hook{ID: h.ID, URL: h.Config.URL, Active: h.Active, Events: h.Events, CreatedAt: h.CreatedAt})
 	}
 	return out, nil
 }
@@ -179,7 +173,7 @@ type giteeHook struct {
 }
 
 // parseGiteeHooks gitee v5 hooks 数组 → Hook：无 name/active 概念
-// （Name 固定 "webhook"、Active 恒 true，见 Hook 注释），事件由布尔位派生。
+// （Active 恒 true，见 Hook 注释），事件由布尔位派生。
 func parseGiteeHooks(body []byte) ([]Hook, error) {
 	var list []giteeHook
 	if err := json.Unmarshal(body, &list); err != nil {
@@ -203,7 +197,7 @@ func parseGiteeHooks(body []byte) ([]Hook, error) {
 		if h.NoteEvents {
 			events = append(events, "note")
 		}
-		out = append(out, Hook{ID: h.ID, Name: "webhook", URL: h.URL, Active: true, Events: events, CreatedAt: h.CreatedAt})
+		out = append(out, Hook{ID: h.ID, URL: h.URL, Active: true, Events: events, CreatedAt: h.CreatedAt})
 	}
 	return out, nil
 }
@@ -211,15 +205,13 @@ func parseGiteeHooks(body []byte) ([]Hook, error) {
 // --- deliveries 上游解析（github only） ---
 
 type githubDelivery struct {
-	ID          int64   `json:"id"`
-	GUID        string  `json:"guid"`
-	Event       string  `json:"event"`
-	Action      string  `json:"action"`
-	Status      string  `json:"status"`
-	StatusCode  int     `json:"status_code"`
-	DeliveredAt string  `json:"delivered_at"`
-	Redelivered bool    `json:"redelivered"`
-	Duration    float64 `json:"duration"`
+	ID          int64  `json:"id"`
+	Event       string `json:"event"`
+	Action      string `json:"action"`
+	Status      string `json:"status"`
+	StatusCode  int    `json:"status_code"`
+	DeliveredAt string `json:"delivered_at"`
+	Redelivered bool   `json:"redelivered"`
 }
 
 func parseDeliveries(body []byte) ([]Delivery, error) {
@@ -232,7 +224,7 @@ func parseDeliveries(body []byte) ([]Delivery, error) {
 		if d.ID == 0 {
 			continue
 		}
-		out = append(out, Delivery{ID: d.ID, GUID: d.GUID, Event: d.Event, Action: d.Action, Status: d.Status, StatusCode: d.StatusCode, DeliveredAt: d.DeliveredAt, Redelivered: d.Redelivered, DurationSeconds: d.Duration})
+		out = append(out, Delivery{ID: d.ID, Event: d.Event, Action: d.Action, Status: d.Status, StatusCode: d.StatusCode, DeliveredAt: d.DeliveredAt, Redelivered: d.Redelivered})
 	}
 	return out, nil
 }
