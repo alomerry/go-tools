@@ -128,6 +128,12 @@ func RedeliverDelivery(ctx context.Context, q Query, tmpl string) error {
 		return err
 	}
 	if code/100 != 2 {
+		// 纵深防御与 doFetch 同口径（同一 maxBodyBytes）：非 2xx 且响应体超
+		// 2MB 时以固定文案替代 snippet，防超大错误页整体进错误链路；保留
+		// StatusCode 供调用方按码映射。
+		if len(body) > maxBodyBytes {
+			return &UpstreamError{StatusCode: code, Snippet: fmt.Sprintf("response too large (%d bytes, limit %d)", len(body), maxBodyBytes)}
+		}
 		return &UpstreamError{StatusCode: code, Snippet: snippet(body)}
 	}
 	return nil

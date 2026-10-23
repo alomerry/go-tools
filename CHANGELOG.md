@@ -1,5 +1,8 @@
 # 更新日志
 
+- **[2026-10-23] fix(service-git-webhook): RedeliverDelivery 非 2xx 响应体补 2MB 上限（发版 patch v0.12.1）**。`components/git`：`RedeliverDelivery` 非 2xx 且响应体超过 `maxBodyBytes`（与 `doFetch` 同一常量）时以 "response too large (N bytes, limit M)" 固定文案替代 snippet，与 doFetch 纵深防御同口径（防超大错误页整体进错误链路）；`*UpstreamError.StatusCode` 保留，调用方按码映射不受影响。2xx 路径不变（响应体本就丢弃，204 无 body 属正常）。单测新增超限文案与边界恰 2MB 不超限两断言（入 `TestRedeliverDelivery`）。
+  验证：`go build ./...`、`go vet ./components/git/`、`go test -count=1 ./components/git/` 全绿；gofmt 干净（触碰文件）。
+
 - **[2026-10-23] refactor(service-git-webhook)!: Step 2b ponytail 精简——删无消费者字段（发版 minor v0.12.0，破坏性）**。`components/git`：`Hook` 删 `Name`（github repo hooks 恒为 "web"、gitee 固定 "webhook"，全链路无消费者、纯魔法常量，连带删 github 解析 name 透传与 gitee 硬编码）；`Delivery` 删 `GUID`/`DurationSeconds`（上游 guid/duration 展示性字段，UI 不展示无排查消费场景，解析不透出）。单测同步删对应断言；`TestSupportsDeliveries` 并入 `TestListDeliveriesGiteeUnsupported`（一行判定不值得单开函数）。`SupportsDeliveries`/`PostFetch`/`RedeliverDelivery` 独立 POST 路径等保留不动（有真实依据：homelab-backend 调用/桩替换/上游 204 语义）。
   验证：`go build ./...`、`go vet ./components/git/ ./model/apollo/`、`go test -count=1 ./components/git/` 全绿；gofmt 干净（触碰文件）。
 

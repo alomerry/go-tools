@@ -110,6 +110,22 @@ func TestRedeliverDelivery(t *testing.T) {
 	assert.Equal(t, 403, UpstreamStatusCode(err))
 	assert.NotContains(t, err.Error(), "\n")
 
+	// 非 2xx 且响应体超 2MB：snippet 以 "response too large" 固定文案替代
+	//（与 doFetch 纵深防御同口径），StatusCode 保留供按码映射。
+	defer stubPostFetch(t, 500, strings.Repeat("x", maxBodyBytes+1), nil)()
+	err = RedeliverDelivery(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r", HookID: 3, DeliveryID: 7}, "https://h/x")
+	require.Error(t, err)
+	assert.Equal(t, 500, UpstreamStatusCode(err))
+	assert.Contains(t, err.Error(), "response too large")
+	assert.NotContains(t, err.Error(), "\n")
+
+	// 边界：非 2xx 响应体恰为 2MB 不超限，snippet 原样保留。
+	defer stubPostFetch(t, 500, strings.Repeat("x", maxBodyBytes), nil)()
+	err = RedeliverDelivery(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r", HookID: 3, DeliveryID: 7}, "https://h/x")
+	require.Error(t, err)
+	assert.Equal(t, 500, UpstreamStatusCode(err))
+	assert.NotContains(t, err.Error(), "response too large")
+
 	// 网络错透传。
 	defer stubPostFetch(t, 0, "", errors.New("dial timeout"))()
 	err = RedeliverDelivery(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r", HookID: 3, DeliveryID: 7}, "https://h/x")
