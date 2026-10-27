@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/alomerry/go-tools/components/http"
@@ -83,22 +84,70 @@ func ListHooks(ctx context.Context, q Query, tmpl string) ([]Hook, error) {
 	}
 }
 
-// ListDeliveries 列 webhook 调用记录（github only，分页由模板透给上游）。
-func ListDeliveries(ctx context.Context, q Query, tmpl string) ([]Delivery, error) {
+// ListDeliveries 列 webhook 调用记录（github only，cursor 分页）：上游
+// List deliveries 端点仅支持 per_page/cursor（page 为非法键，传即 422），
+// 故不复用通用 BuildURL——经 BuildDeliveriesURL 装配（模板残留 {page} 即
+// fail-fast），返回体外带下一页游标（无下一页即空串；取自响应 Link 头
+// rel="next"，上游单页/末页不下发 Link 头）。
+func ListDeliveries(ctx context.Context, q Query, tmpl string) ([]Delivery, string, error) {
 	if q.Owner == "" || q.Repo == "" {
-		return nil, fmt.Errorf("owner/repo are required")
+		return nil, "", fmt.Errorf("owner/repo are required")
 	}
 	if q.HookID <= 0 {
-		return nil, fmt.Errorf("hook_id is required")
+		return nil, "", fmt.Errorf("hook_id is required")
 	}
 	if !SupportsDeliveries(q.Provider) {
-		return nil, fmt.Errorf("provider %s does not support webhook deliveries", q.Provider)
+		return nil, "", fmt.Errorf("provider %s does not support webhook deliveries", q.Provider)
 	}
-	body, err := doFetch(ctx, q, tmpl)
+	target, err := BuildDeliveriesURL(tmpl, q)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return parseDeliveries(body)
+	if strings.TrimSpace(q.Host) == "" {
+		return nil, "", fmt.Errorf("git host is not configured for provider %s", q.Provider)
+	}
+	code, header, body, err := FetchHeaders(ctx, target, q.Token)
+	if err != nil {
+		return nil, "", err
+	}
+	if err := checkBrowseBody(code, body); err != nil {
+		return nil, "", err
+	}
+	deliveries, err := parseDeliveries(body)
+	if err != nil {
+		return nil, "", err
+	}
+	return deliveries, parseNextCursor(header.Get("Link")), nil
+}
+
+// parseNextCursor 从 github 分页 Link 头提取 rel="next" 的 cursor 参数：
+// `<url?per_page=20&cursor=abc>; rel="next", <url...>; rel="prev"`。
+// 无 Link 头/无 next 段/cursor 为空（单页或末页）一律回空串，不报错。
+func parseNextCursor(link string) string {
+	for _, part := range strings.Split(link, ",") {
+		segments := strings.Split(strings.TrimSpace(part), ";")
+		if len(segments) < 2 {
+			continue
+		}
+		next := false
+		for _, s := range segments[1:] {
+			if strings.TrimSpace(s) == `rel="next"` {
+				next = true
+				break
+			}
+		}
+		if !next {
+			continue
+		}
+		u, err := url.Parse(strings.Trim(strings.TrimSpace(segments[0]), "<>"))
+		if err != nil {
+			continue
+		}
+		if cursor := u.Query().Get("cursor"); cursor != "" {
+			return cursor
+		}
+	}
+	return ""
 }
 
 // RedeliverDelivery 重发单条 webhook 调用（github only，POST；上游 2xx 即
@@ -128,13 +177,7 @@ func RedeliverDelivery(ctx context.Context, q Query, tmpl string) error {
 		return err
 	}
 	if code/100 != 2 {
-		// 纵深防御与 doFetch 同口径（同一 maxBodyBytes）：非 2xx 且响应体超
-		// 2MB 时以固定文案替代 snippet，防超大错误页整体进错误链路；保留
-		// StatusCode 供调用方按码映射。
-		if len(body) > maxBodyBytes {
-			return &UpstreamError{StatusCode: code, Snippet: fmt.Sprintf("response too large (%d bytes, limit %d)", len(body), maxBodyBytes)}
-		}
-		return &UpstreamError{StatusCode: code, Snippet: snippet(body)}
+		return newUpstreamError(code, body)
 	}
 	return nil
 }

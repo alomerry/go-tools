@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	stdhttp "net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -88,6 +89,9 @@ type Query struct {
 	// 浏览四能力不消费。
 	HookID     int64
 	DeliveryID int64
+	// Cursor github deliveries 游标分页（ListDeliveries 用）：空即首页，非空为
+	// 上一页响应 Link 头 rel="next" 的 cursor。浏览四能力与 ListHooks 不消费。
+	Cursor string
 	// PageSize 分页大小。
 	PageSize int
 }
@@ -129,13 +133,25 @@ type Branch struct {
 // FetchFunc 单次 HTTP 取数（statusCode + body），变量化以便单测桩替换。
 type FetchFunc func(ctx context.Context, url, token string) (statusCode int, body []byte, err error)
 
-// Fetch 默认取数实现：共享 resty client + token 鉴权。
+// Fetch 默认取数实现：FetchHeaders 的一行 wrapper（共享 resty client +
+// token 鉴权内核，抛弃响应头）。
 var Fetch FetchFunc = func(ctx context.Context, url, token string) (int, []byte, error) {
+	code, _, body, err := FetchHeaders(ctx, url, token)
+	return code, body, err
+}
+
+// FetchHeadersFunc 带响应头取数（statusCode + header + body），变量化以便单测
+// 桩替换。deliveries 游标分页需读上游 Link 头取下一页 cursor，Fetch 只回
+// body 满足不了，走本变量；其余能力沿用 Fetch 不动。
+type FetchHeadersFunc func(ctx context.Context, url, token string) (statusCode int, header stdhttp.Header, body []byte, err error)
+
+// FetchHeaders 默认带头取数实现：共享 resty client + token 鉴权。
+var FetchHeaders FetchHeadersFunc = func(ctx context.Context, url, token string) (int, stdhttp.Header, []byte, error) {
 	resp, err := http.GetClient().Get(ctx, url, req.WithAuthToken(token))
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, nil, err
 	}
-	return resp.StatusCode(), resp.Bytes(), nil
+	return resp.StatusCode(), resp.Header(), resp.Bytes(), nil
 }
 
 // IsSupportedProvider 是否为 SDK 内建解析的 provider。
@@ -169,6 +185,48 @@ func BuildURL(tmpl string, q Query) (string, error) {
 		"{delivery_id}", strconv.FormatInt(q.DeliveryID, 10),
 	)
 	return r.Replace(tmpl), nil
+}
+
+// BuildDeliveriesURL deliveries 专用 URL 装配（github cursor 分页，无 page 语义）：
+//   - 空模板 fail-closed（与 doFetch 同口径，防误配模板打到错误平台）。
+//   - 模板含 `{page}` 直接 fail-fast：github deliveries 端点以 422 拒绝 page
+//     键（InvalidArgument 非法键），静默忽略会造成「翻页无反应」的错数据，
+//     必须在部署期暴露而非线上 502。
+//   - `{page_size}` 照常填充为 per_page 值（归一缺省 20/上限 100）；游标仅
+//     支持 query 形态、经 URL query 统一装配（兼容 Apollo 止血模板
+//     `?per_page={page_size}`）：模板 query 位含 `{cursor}` 占位会被游标值覆
+//     盖、无占位则自动追加（path 位的 `{cursor}` 不支持，会残留字面量打到上
+//     游）；空游标（首页）不发送 cursor 参数。
+//
+// 注意 `{page}` 判定须精确匹配：`{page_size}` 含 "page" 子串但无花括号闭合，
+// 不会误判。
+func BuildDeliveriesURL(tmpl string, q Query) (string, error) {
+	if tmpl == "" {
+		return "", fmt.Errorf("provider %s has no path template for this operation", q.Provider)
+	}
+	if strings.Contains(tmpl, "{page}") {
+		return "", fmt.Errorf("deliveries template must not contain {page}: github deliveries API is cursor-paginated (per_page/cursor), {page} is rejected with http 422")
+	}
+	_, pageSize := NormalizedPage(0, q.PageSize)
+	r := strings.NewReplacer(
+		"{host}", q.Host,
+		"{owner}", url.PathEscape(q.Owner),
+		"{repo}", url.PathEscape(q.Repo),
+		"{hook_id}", strconv.FormatInt(q.HookID, 10),
+		"{page_size}", strconv.Itoa(pageSize),
+	)
+	u, err := url.Parse(r.Replace(tmpl))
+	if err != nil {
+		return "", err
+	}
+	query := u.Query()
+	if strings.TrimSpace(q.Cursor) == "" {
+		query.Del("cursor")
+	} else {
+		query.Set("cursor", strings.TrimSpace(q.Cursor))
+	}
+	u.RawQuery = query.Encode()
+	return u.String(), nil
 }
 
 // escapeGitPath 仓库相对路径按段转义：段间 `/` 原样保留，段内逐段
@@ -227,16 +285,36 @@ func doFetch(ctx context.Context, q Query, tmpl string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(body) > maxBodyBytes {
-		return nil, fmt.Errorf("git browse failed: response too large (%d bytes, limit %d)", len(body), maxBodyBytes)
-	}
-	if code/100 != 2 {
-		return nil, &UpstreamError{StatusCode: code, Snippet: snippet(body)}
-	}
-	if len(body) == 0 {
-		return nil, fmt.Errorf("git browse failed: empty response body")
+	if err := checkBrowseBody(code, body); err != nil {
+		return nil, err
 	}
 	return body, nil
+}
+
+// newUpstreamError 非 2xx 结构化错误单点（S4）：响应体超 2MB 时以固定文案
+// 替代 snippet，防超大错误页整体进错误链路；StatusCode 保留供调用方按码映射。
+// 2MB 口径（S5）收敛于此与 checkBrowseBody 的成功路径上限两处，文案格式单点。
+func newUpstreamError(code int, body []byte) *UpstreamError {
+	if len(body) > maxBodyBytes {
+		return &UpstreamError{StatusCode: code, Snippet: fmt.Sprintf("response too large (%d bytes, limit %d)", len(body), maxBodyBytes)}
+	}
+	return &UpstreamError{StatusCode: code, Snippet: snippet(body)}
+}
+
+// checkBrowseBody 取数后置校验单点（2MB 上限 S5 + 非 2xx 结构化 + 空 body
+// 拒绝）：doFetch 与 ListDeliveries（走 FetchHeaders 无头内核，无法复用
+// doFetch 整体）同调，避免口径漂移。
+func checkBrowseBody(code int, body []byte) error {
+	if len(body) > maxBodyBytes {
+		return fmt.Errorf("git browse failed: response too large (%d bytes, limit %d)", len(body), maxBodyBytes)
+	}
+	if code/100 != 2 {
+		return newUpstreamError(code, body)
+	}
+	if len(body) == 0 {
+		return fmt.Errorf("git browse failed: empty response body")
+	}
+	return nil
 }
 
 // GetFile 取单文件内容（content 已 base64 解码）。

@@ -1,5 +1,8 @@
 # 更新日志
 
+- **[2026-10-28] feat(git)!: deliveries 改 cursor 分页根治上游 422（发版 minor v0.13.0，`ListDeliveries` 改签破坏性）**。`components/git`：`Query` 增 `Cursor`（空即首页，非空为上一页 Link 头 rel="next" 的 cursor；浏览四能力与 `ListHooks` 不消费）；新增 `BuildDeliveriesURL` 专用装配（空模板 fail-closed 与 doFetch 同口径；模板含 `{page}` 精确匹配 fail-fast——github deliveries 端点以 422 拒绝 page 键，静默忽略会造成翻页无反应的错数据；`{page_size}` 照常归一缺省 20/上限 100；cursor 仅支持 query 形态、经 URL query 统一装配：模板 query 位含 `{cursor}` 则覆盖、无则自动追加（path 位不支持）、空游标不发送）；新增 `FetchHeaders` 带头取数（`components/http.Response` 接口增 `Header()`，restyResponse 经内嵌 `*resty.Response` 直接满足；其余能力沿用 `Fetch` 不动）+ `parseNextCursor` 解析 Link 头 rel="next" 的 cursor（无头/无 next/畸形一律回空串不报错）；`ListDeliveries` 改签为 `(deliveries, nextCursor, err)`（取数后置校验与 doFetch 显式对齐：2MB 上限/非 2xx 结构化/空 body 拒绝）。`BuildURL`/`Fetch`/浏览四能力/`ListHooks`/`RedeliverDelivery`/gitee 白名单零改动。调用方（homelab-backend deck `ListGitWebhookDeliveries`）须同步改 cursor 透传 + `HasMore=nextCursor!=""`，并改 Apollo `deliveriesPath` 去掉 `page={page}&`（`{cursor}` 可不加，SDK 自动追加）。
+  验证：`go build ./...`、`go vet ./components/git/ ./components/http/`、`go test -count=1 ./...` 全绿（含新增 `TestBuildDeliveriesURL`/`TestParseNextCursor`/`TestListDeliveriesCursorRoundTrip`/模板含 page fail-fast 不发请求）；gofmt 干净（触碰文件）。
+
 - **[2026-10-23] fix(service-git-webhook): RedeliverDelivery 非 2xx 响应体补 2MB 上限（发版 patch v0.12.1）**。`components/git`：`RedeliverDelivery` 非 2xx 且响应体超过 `maxBodyBytes`（与 `doFetch` 同一常量）时以 "response too large (N bytes, limit M)" 固定文案替代 snippet，与 doFetch 纵深防御同口径（防超大错误页整体进错误链路）；`*UpstreamError.StatusCode` 保留，调用方按码映射不受影响。2xx 路径不变（响应体本就丢弃，204 无 body 属正常）。单测新增超限文案与边界恰 2MB 不超限两断言（入 `TestRedeliverDelivery`）。
   验证：`go build ./...`、`go vet ./components/git/`、`go test -count=1 ./components/git/` 全绿；gofmt 干净（触碰文件）。
 
