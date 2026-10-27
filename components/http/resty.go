@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	stdhttp "net/http"
 	"sync"
 
 	"github.com/alomerry/go-tools/components/http/opts/req"
@@ -26,6 +27,9 @@ type Response interface {
 	Bytes() []byte
 	Status() string
 	StatusCode() int
+	// Header 上游响应头（deliveries 游标分页读 Link 头用；restyResponse 经内嵌
+	// *resty.Response 直接满足）。
+	Header() stdhttp.Header
 }
 
 type restyClient struct {
@@ -35,6 +39,10 @@ type restyClient struct {
 type restyResponse struct {
 	*resty.Response
 }
+
+// 编译期断言：restyResponse 须完整实现 Response（Header 经内嵌
+// *resty.Response 满足；接口新增方法时此处先红，避免运行时才暴露）。
+var _ Response = (*restyResponse)(nil)
 
 func (r *restyResponse) Bytes() []byte {
 	return r.Body()

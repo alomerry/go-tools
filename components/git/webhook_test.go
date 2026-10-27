@@ -3,6 +3,7 @@ package git
 import (
 	"context"
 	"errors"
+	stdhttp "net/http"
 	"strings"
 	"testing"
 
@@ -18,6 +19,23 @@ func stubPostFetch(t *testing.T, code int, body string, err error) func() {
 		return code, []byte(body), err
 	}
 	return func() { PostFetch = old }
+}
+
+// stubFetchHeaders 替换 FetchHeaders 桩（deliveries 游标分页取数用），返回
+// 还原函数与请求 URL 捕获。
+func stubFetchHeaders(t *testing.T, code int, link, body string, err error) (func(), *string) {
+	t.Helper()
+	var gotURL string
+	old := FetchHeaders
+	FetchHeaders = func(_ context.Context, url, _ string) (int, stdhttp.Header, []byte, error) {
+		gotURL = url
+		h := make(stdhttp.Header)
+		if link != "" {
+			h.Set("Link", link)
+		}
+		return code, h, []byte(body), err
+	}
+	return func() { FetchHeaders = old }, &gotURL
 }
 
 func TestListHooksGithub(t *testing.T) {
@@ -53,8 +71,9 @@ func TestListHooksBadArgs(t *testing.T) {
 
 func TestListDeliveriesGithub(t *testing.T) {
 	body := `[{"id":7,"guid":"g-1","delivered_at":"2026-06-03T00:57:16Z","redelivered":false,"duration":0.27,"status":"OK","status_code":200,"event":"push","action":"published","repository_id":2},{"id":0,"guid":"bad"}]`
-	defer stubFetch(t, 200, body, nil)()
-	ds, err := ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "api.github.com", Owner: "o", Repo: "r", HookID: 3}, "https://{host}/repos/{owner}/{repo}/hooks/{hook_id}/deliveries")
+	restore, _ := stubFetchHeaders(t, 200, "", body, nil)
+	defer restore()
+	ds, next, err := ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "api.github.com", Owner: "o", Repo: "r", HookID: 3}, "https://{host}/repos/{owner}/{repo}/hooks/{hook_id}/deliveries?per_page={page_size}")
 	require.NoError(t, err)
 	require.Len(t, ds, 1)
 	assert.Equal(t, int64(7), ds[0].ID)
@@ -63,24 +82,108 @@ func TestListDeliveriesGithub(t *testing.T) {
 	assert.Equal(t, "OK", ds[0].Status)
 	assert.Equal(t, 200, ds[0].StatusCode)
 	assert.False(t, ds[0].Redelivered)
+	// 无 Link 头（单页）→ next 为空。
+	assert.Empty(t, next)
+}
+
+func TestListDeliveriesCursorRoundTrip(t *testing.T) {
+	body := `[{"id":7,"delivered_at":"2026-06-03T00:57:16Z","redelivered":false,"status":"OK","status_code":200,"event":"push"}]`
+	link := `<https://api.github.com/repos/o/r/hooks/3/deliveries?per_page=1&cursor=CURSOR2>; rel="next", <https://api.github.com/repos/o/r/hooks/3/deliveries?per_page=1>; rel="prev"`
+	restore, gotURL := stubFetchHeaders(t, 200, link, body, nil)
+	defer restore()
+	ds, next, err := ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "api.github.com", Owner: "o", Repo: "r", HookID: 3, Cursor: "CURSOR1", PageSize: 1}, "https://{host}/repos/{owner}/{repo}/hooks/{hook_id}/deliveries?per_page={page_size}")
+	require.NoError(t, err)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "CURSOR2", next)
+	// 发往上游的 URL：cursor 透传、per_page 归一、无 page 键（传 page 即 422）。
+	u, err := stdhttp.NewRequest("GET", *gotURL, nil)
+	require.NoError(t, err)
+	query := u.URL.Query()
+	assert.Equal(t, "CURSOR1", query.Get("cursor"))
+	assert.Equal(t, "1", query.Get("per_page"))
+	assert.Empty(t, query.Get("page"))
+}
+
+func TestListDeliveriesTemplateWithPageFailFast(t *testing.T) {
+	called := false
+	old := FetchHeaders
+	FetchHeaders = func(_ context.Context, _, _ string) (int, stdhttp.Header, []byte, error) {
+		called = true
+		return 200, nil, []byte(`[]`), nil
+	}
+	defer func() { FetchHeaders = old }()
+
+	// 旧 Apollo 模板残留 {page}：上线前 fail-fast，不发请求（发即上游 422）。
+	_, _, err := ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r", HookID: 3}, "https://{host}/repos/{owner}/{repo}/hooks/{hook_id}/deliveries?page={page}&per_page={page_size}")
+	require.ErrorContains(t, err, "{page}")
+	assert.False(t, called)
+
+	// {page_size} 含 page 子串但无花括号闭合：不得误判，照常填充。
+	_, _, err = ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r", HookID: 3}, "https://{host}/x?per_page={page_size}")
+	require.NoError(t, err)
+	assert.True(t, called)
+}
+
+func TestBuildDeliveriesURL(t *testing.T) {
+	// 空游标（首页）：不发送 cursor 参数，非空经 query 统一装配。
+	got, err := BuildDeliveriesURL("https://{host}/repos/{owner}/{repo}/hooks/{hook_id}/deliveries?per_page={page_size}", Query{Provider: ProviderGithub, Host: "api.github.com", Owner: "o", Repo: "r", HookID: 3})
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.com/repos/o/r/hooks/3/deliveries?per_page=20", got)
+
+	// 非空游标经 query 统一装配（模板无需 {cursor} 占位）。
+	got, err = BuildDeliveriesURL("https://{host}/x?per_page={page_size}", Query{Host: "h", Cursor: "ab cd"})
+	require.NoError(t, err)
+	assert.Contains(t, got, "cursor=ab+cd")
+
+	// 模板 query 位含 {cursor} 占位同样收敛到游标值（query.Set 覆盖，
+	// 非 replacer 填充；空游标则删参，不残留字面量）。
+	got, err = BuildDeliveriesURL("https://{host}/x?cursor={cursor}&per_page={page_size}", Query{Host: "h", Cursor: "NEXT1"})
+	require.NoError(t, err)
+	assert.Contains(t, got, "cursor=NEXT1")
+	assert.NotContains(t, got, "{cursor}")
+	got, err = BuildDeliveriesURL("https://{host}/x?cursor={cursor}&per_page={page_size}", Query{Host: "h"})
+	require.NoError(t, err)
+	assert.NotContains(t, got, "cursor")
+
+	// pageSize 归一（缺省 20/上限 100，与 NormalizedPage 同口径）。
+	got, err = BuildDeliveriesURL("https://h/x?per_page={page_size}", Query{PageSize: 500})
+	require.NoError(t, err)
+	assert.Contains(t, got, "per_page=100")
+
+	// 空模板 fail-closed。
+	_, err = BuildDeliveriesURL("", Query{Provider: ProviderGithub})
+	require.ErrorContains(t, err, "no path template")
+}
+
+func TestParseNextCursor(t *testing.T) {
+	link := `<https://api.github.com/repos/o/r/hooks/3/deliveries?per_page=1&cursor=NEXT1>; rel="next", <https://api.github.com/repos/o/r/hooks/3/deliveries?per_page=1>; rel="prev"`
+	assert.Equal(t, "NEXT1", parseNextCursor(link))
+	// 仅 prev（首页无 next 或末页）→ 空。
+	assert.Empty(t, parseNextCursor(`<https://api.github.com/x?cursor=P>; rel="prev"`))
+	// 无 Link 头（单页）→ 空。
+	assert.Empty(t, parseNextCursor(""))
+	// 畸形段容忍：坏段跳过，好段照常提取。
+	assert.Equal(t, "N2", parseNextCursor(`not-a-link, <https://h/x?cursor=N2>; rel="next"`))
+	// url 编码 cursor 正确解码。
+	assert.Equal(t, "a/b+c", parseNextCursor(`<https://h/x?cursor=a%2Fb%2Bc>; rel="next"`))
 }
 
 func TestListDeliveriesGiteeUnsupported(t *testing.T) {
 	called := false
-	old := Fetch
-	Fetch = func(_ context.Context, _, _ string) (int, []byte, error) {
+	old := FetchHeaders
+	FetchHeaders = func(_ context.Context, _, _ string) (int, stdhttp.Header, []byte, error) {
 		called = true
-		return 200, []byte(`[]`), nil
+		return 200, nil, []byte(`[]`), nil
 	}
-	defer func() { Fetch = old }()
+	defer func() { FetchHeaders = old }()
 
 	// gitee v5 无 deliveries API：即便误配了模板，provider 白名单直接拒绝，不发请求。
-	_, err := ListDeliveries(context.Background(), Query{Provider: ProviderGitee, Host: "gitee.com", Owner: "o", Repo: "r", HookID: 3}, "https://{host}/api/v5/x")
+	_, _, err := ListDeliveries(context.Background(), Query{Provider: ProviderGitee, Host: "gitee.com", Owner: "o", Repo: "r", HookID: 3}, "https://{host}/api/v5/x")
 	require.ErrorContains(t, err, "does not support webhook deliveries")
 	assert.False(t, called)
 
 	// hook_id 缺失同样拒绝。
-	_, err = ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r"}, "https://h/x")
+	_, _, err = ListDeliveries(context.Background(), Query{Provider: ProviderGithub, Host: "h", Owner: "o", Repo: "r"}, "https://h/x")
 	require.ErrorContains(t, err, "hook_id is required")
 
 	// 能力判定与白名单同源：github true，其余 false。
