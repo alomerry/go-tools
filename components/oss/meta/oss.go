@@ -20,6 +20,27 @@ type OSSClient interface {
 	ListBuckets(ctx context.Context) ([]Bucket, error)
 	RemoveBucket(ctx context.Context, bucketName string) error
 	Bucket(ctx context.Context, bucketName string) OSSClient
+
+	// 桶配置（bucket_config.go）：BucketPolicy/Lifecycle/Versioning/
+	// Encryption/CORS 走 S3 原生 API；Referer/Quota 为应用层语义（Bucket
+	// Tagging 透存，见 RefererConfig/BucketQuota 注释）。不支持的后端返回
+	// ErrBucketConfigUnsupported（调用方降级展示，非失败）。
+	// 清空语义：Put 空值即删（policy 空串 / lifecycle 空集 / encryption
+	// algorithm 空 / cors 空集走 S3 Delete），不设独立 Delete 方法。
+	GetBucketPolicy(ctx context.Context, bucketName string) (string, error)
+	PutBucketPolicy(ctx context.Context, bucketName string, policyJSON string) error
+	GetBucketLifecycle(ctx context.Context, bucketName string) ([]LifecycleRule, error)
+	PutBucketLifecycle(ctx context.Context, bucketName string, rules []LifecycleRule) error
+	GetBucketVersioning(ctx context.Context, bucketName string) (BucketVersioning, error)
+	SetBucketVersioning(ctx context.Context, bucketName string, enabled bool) error
+	GetBucketEncryption(ctx context.Context, bucketName string) (BucketEncryption, error)
+	PutBucketEncryption(ctx context.Context, bucketName string, cfg BucketEncryption) error
+	GetBucketCORS(ctx context.Context, bucketName string) ([]CORSRule, error)
+	PutBucketCORS(ctx context.Context, bucketName string, rules []CORSRule) error
+	GetBucketReferer(ctx context.Context, bucketName string) (RefererConfig, error)
+	PutBucketReferer(ctx context.Context, bucketName string, cfg RefererConfig) error
+	GetBucketQuota(ctx context.Context, bucketName string) (BucketQuota, error)
+	PutBucketQuota(ctx context.Context, bucketName string, quota BucketQuota) error
 }
 
 // Bucket 存储桶元数据

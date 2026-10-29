@@ -174,3 +174,63 @@ func (c *CloudflareR2) Bucket(_ context.Context, bucketName string) meta.OSSClie
 		bucket: bucketName,
 	}
 }
+
+// --- 桶配置（meta.OSSClient 扩展）：与 RustFs 共用 S3 实现
+// （internal/bucket_config.go）；R2 不支持项归一为
+// meta.ErrBucketConfigUnsupported，调用方降级展示。 ---
+
+func (c *CloudflareR2) GetBucketPolicy(ctx context.Context, bucketName string) (string, error) {
+	return s3GetBucketPolicy(ctx, c.client, bucketName)
+}
+
+func (c *CloudflareR2) PutBucketPolicy(ctx context.Context, bucketName string, policyJSON string) error {
+	return s3PutBucketPolicy(ctx, c.client, bucketName, policyJSON)
+}
+
+func (c *CloudflareR2) GetBucketLifecycle(ctx context.Context, bucketName string) ([]meta.LifecycleRule, error) {
+	return s3GetBucketLifecycle(ctx, c.client, bucketName)
+}
+
+func (c *CloudflareR2) PutBucketLifecycle(ctx context.Context, bucketName string, rules []meta.LifecycleRule) error {
+	return s3PutBucketLifecycle(ctx, c.client, bucketName, rules)
+}
+
+func (c *CloudflareR2) GetBucketVersioning(ctx context.Context, bucketName string) (meta.BucketVersioning, error) {
+	return s3GetBucketVersioning(ctx, c.client, bucketName)
+}
+
+func (c *CloudflareR2) SetBucketVersioning(ctx context.Context, bucketName string, enabled bool) error {
+	return s3SetBucketVersioning(ctx, c.client, bucketName, enabled)
+}
+
+func (c *CloudflareR2) GetBucketEncryption(ctx context.Context, bucketName string) (meta.BucketEncryption, error) {
+	return s3GetBucketEncryption(ctx, c.client, bucketName)
+}
+
+func (c *CloudflareR2) PutBucketEncryption(ctx context.Context, bucketName string, cfg meta.BucketEncryption) error {
+	return s3PutBucketEncryption(ctx, c.client, bucketName, cfg)
+}
+
+func (c *CloudflareR2) GetBucketCORS(ctx context.Context, bucketName string) ([]meta.CORSRule, error) {
+	return s3GetBucketCORS(ctx, c.client, bucketName)
+}
+
+func (c *CloudflareR2) PutBucketCORS(ctx context.Context, bucketName string, rules []meta.CORSRule) error {
+	return s3PutBucketCORS(ctx, c.client, bucketName, rules)
+}
+
+func (c *CloudflareR2) GetBucketReferer(ctx context.Context, bucketName string) (meta.RefererConfig, error) {
+	return s3GetBucketReferer(ctx, c.client, bucketName)
+}
+
+func (c *CloudflareR2) PutBucketReferer(ctx context.Context, bucketName string, cfg meta.RefererConfig) error {
+	return s3PutBucketReferer(ctx, c.client, bucketName, cfg)
+}
+
+func (c *CloudflareR2) GetBucketQuota(ctx context.Context, bucketName string) (meta.BucketQuota, error) {
+	return s3GetBucketQuota(ctx, c.client, bucketName)
+}
+
+func (c *CloudflareR2) PutBucketQuota(ctx context.Context, bucketName string, quota meta.BucketQuota) error {
+	return s3PutBucketQuota(ctx, c.client, bucketName, quota)
+}

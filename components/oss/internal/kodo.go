@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -228,4 +229,63 @@ func (q *client) ListObjectsPage(ctx context.Context, bucketName string, prefix 
 func (q *client) Bucket(ctx context.Context, bucketName string) meta.OSSClient {
 	q.bucketName = bucketName
 	return q
+}
+
+// --- 桶配置（meta.OSSClient 扩展）：七牛 kodo 无 S3 对齐的桶配置语义，
+// 全系返回 ErrBucketConfigUnsupported（调用方降级展示，非失败）。 ---
+
+func (q *client) GetBucketPolicy(ctx context.Context, bucketName string) (string, error) {
+	return "", fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) PutBucketPolicy(ctx context.Context, bucketName string, policyJSON string) error {
+	return fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) GetBucketLifecycle(ctx context.Context, bucketName string) ([]meta.LifecycleRule, error) {
+	return nil, fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) PutBucketLifecycle(ctx context.Context, bucketName string, rules []meta.LifecycleRule) error {
+	return fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) GetBucketVersioning(ctx context.Context, bucketName string) (meta.BucketVersioning, error) {
+	return meta.BucketVersioning{}, fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) SetBucketVersioning(ctx context.Context, bucketName string, enabled bool) error {
+	return fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) GetBucketEncryption(ctx context.Context, bucketName string) (meta.BucketEncryption, error) {
+	return meta.BucketEncryption{}, fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) PutBucketEncryption(ctx context.Context, bucketName string, cfg meta.BucketEncryption) error {
+	return fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) GetBucketCORS(ctx context.Context, bucketName string) ([]meta.CORSRule, error) {
+	return nil, fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) PutBucketCORS(ctx context.Context, bucketName string, rules []meta.CORSRule) error {
+	return fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) GetBucketReferer(ctx context.Context, bucketName string) (meta.RefererConfig, error) {
+	return meta.RefererConfig{}, fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) PutBucketReferer(ctx context.Context, bucketName string, cfg meta.RefererConfig) error {
+	return fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) GetBucketQuota(ctx context.Context, bucketName string) (meta.BucketQuota, error) {
+	return meta.BucketQuota{}, fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
+}
+
+func (q *client) PutBucketQuota(ctx context.Context, bucketName string, quota meta.BucketQuota) error {
+	return fmt.Errorf("%w: kodo", meta.ErrBucketConfigUnsupported)
 }

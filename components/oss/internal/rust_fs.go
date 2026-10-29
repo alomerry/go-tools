@@ -315,3 +315,63 @@ func (r *RustFs) Bucket(_ context.Context, bucketName string) meta.OSSClient {
 		bucket: bucketName,
 	}
 }
+
+// --- 桶配置（meta.OSSClient 扩展）：全部委托 internal/bucket_config.go 的
+// S3 共享实现，双实例（rustfs/R2）同语义；R2 不支持项由共享层归一为
+// meta.ErrBucketConfigUnsupported。 ---
+
+func (r *RustFs) GetBucketPolicy(ctx context.Context, bucketName string) (string, error) {
+	return s3GetBucketPolicy(ctx, r.client, bucketName)
+}
+
+func (r *RustFs) PutBucketPolicy(ctx context.Context, bucketName string, policyJSON string) error {
+	return s3PutBucketPolicy(ctx, r.client, bucketName, policyJSON)
+}
+
+func (r *RustFs) GetBucketLifecycle(ctx context.Context, bucketName string) ([]meta.LifecycleRule, error) {
+	return s3GetBucketLifecycle(ctx, r.client, bucketName)
+}
+
+func (r *RustFs) PutBucketLifecycle(ctx context.Context, bucketName string, rules []meta.LifecycleRule) error {
+	return s3PutBucketLifecycle(ctx, r.client, bucketName, rules)
+}
+
+func (r *RustFs) GetBucketVersioning(ctx context.Context, bucketName string) (meta.BucketVersioning, error) {
+	return s3GetBucketVersioning(ctx, r.client, bucketName)
+}
+
+func (r *RustFs) SetBucketVersioning(ctx context.Context, bucketName string, enabled bool) error {
+	return s3SetBucketVersioning(ctx, r.client, bucketName, enabled)
+}
+
+func (r *RustFs) GetBucketEncryption(ctx context.Context, bucketName string) (meta.BucketEncryption, error) {
+	return s3GetBucketEncryption(ctx, r.client, bucketName)
+}
+
+func (r *RustFs) PutBucketEncryption(ctx context.Context, bucketName string, cfg meta.BucketEncryption) error {
+	return s3PutBucketEncryption(ctx, r.client, bucketName, cfg)
+}
+
+func (r *RustFs) GetBucketCORS(ctx context.Context, bucketName string) ([]meta.CORSRule, error) {
+	return s3GetBucketCORS(ctx, r.client, bucketName)
+}
+
+func (r *RustFs) PutBucketCORS(ctx context.Context, bucketName string, rules []meta.CORSRule) error {
+	return s3PutBucketCORS(ctx, r.client, bucketName, rules)
+}
+
+func (r *RustFs) GetBucketReferer(ctx context.Context, bucketName string) (meta.RefererConfig, error) {
+	return s3GetBucketReferer(ctx, r.client, bucketName)
+}
+
+func (r *RustFs) PutBucketReferer(ctx context.Context, bucketName string, cfg meta.RefererConfig) error {
+	return s3PutBucketReferer(ctx, r.client, bucketName, cfg)
+}
+
+func (r *RustFs) GetBucketQuota(ctx context.Context, bucketName string) (meta.BucketQuota, error) {
+	return s3GetBucketQuota(ctx, r.client, bucketName)
+}
+
+func (r *RustFs) PutBucketQuota(ctx context.Context, bucketName string, quota meta.BucketQuota) error {
+	return s3PutBucketQuota(ctx, r.client, bucketName, quota)
+}
