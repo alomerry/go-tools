@@ -73,9 +73,10 @@ func (q *client) DownloadManager() *downloader.DownloadManager {
 func (q *client) PutObject(ctx context.Context, objectKey string, reader io.Reader, _ int64) error {
 	var res uploadReturnBody
 	err := q.UploadManager().UploadReader(ctx, reader, &uploader.ObjectOptions{
-		BucketName: q.bucketName,
-		ObjectName: &objectKey,
-		FileName:   files.GetFileName(objectKey),
+		BucketName:  q.bucketName,
+		ObjectName:  &objectKey,
+		FileName:    files.GetFileName(objectKey),
+		ContentType: contentTypeByObjectKey(objectKey),
 	}, &res)
 	return err
 }

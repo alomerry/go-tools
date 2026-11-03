@@ -69,7 +69,7 @@ func (c *CloudflareR2) UploadFromLocal(ctx context.Context, bucket, filePath, os
 		Bucket:      &bucket,
 		Key:         &ossPath,
 		Body:        file,
-		ContentType: nil, // TODO
+		ContentType: aws.String(contentTypeByObjectKey(ossPath)),
 	})
 	if err != nil {
 		return nil, err

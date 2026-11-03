@@ -81,9 +81,10 @@ func (r *RustFs) UploadFromLocal(ctx context.Context, filePath, ossPath string) 
 	}
 	defer file.Close()
 	resp, err := r.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: &r.bucket,
-		Key:    &ossPath,
-		Body:   file,
+		Bucket:      &r.bucket,
+		Key:         &ossPath,
+		Body:        file,
+		ContentType: aws.String(contentTypeByObjectKey(ossPath)),
 	})
 	if err != nil {
 		return nil, err
@@ -93,9 +94,10 @@ func (r *RustFs) UploadFromLocal(ctx context.Context, filePath, ossPath string) 
 
 func (r *RustFs) PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error {
 	input := &s3.PutObjectInput{
-		Bucket: &r.bucket,
-		Key:    &objectKey,
-		Body:   reader,
+		Bucket:      &r.bucket,
+		Key:         &objectKey,
+		Body:        reader,
+		ContentType: aws.String(contentTypeByObjectKey(objectKey)),
 	}
 	if objectSize > 0 {
 		input.ContentLength = aws.Int64(objectSize)
