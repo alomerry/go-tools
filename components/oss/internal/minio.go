@@ -120,7 +120,9 @@ func (m *minioClient) DownloadToFile(ctx context.Context, objectKey string) (str
 }
 
 func (m *minioClient) PutObject(ctx context.Context, objectKey string, reader io.Reader, objectSize int64) error {
-	_, err := m.client.PutObject(ctx, m.bucketName, objectKey, reader, objectSize, minio.PutObjectOptions{})
+	_, err := m.client.PutObject(ctx, m.bucketName, objectKey, reader, objectSize, minio.PutObjectOptions{
+		ContentType: contentTypeByObjectKey(objectKey),
+	})
 	return err
 }
 

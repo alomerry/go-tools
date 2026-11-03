@@ -1,5 +1,8 @@
 # 更新日志
 
+- **[2026-11-03] fix(oss): PutObject 按对象键扩展名推断 Content-Type（发版建议 minor v0.15.0）**。此前 `PutObject` 不设 `Content-Type`，RustFS/R2/MinIO/Kodo 均落成 `application/octet-stream`——浏览器在 `X-Content-Type-Options: nosniff` 下不渲染图片（发票缩略图上线依赖本修复）。新增 `internal/content_type.go` 的 `contentTypeByObjectKey`（显式小表：jpg/jpeg/png/webp/gif/svg/ico/pdf/json/xml/txt/csv/md/html/css/js/mp4/webm/mov/mp3/zip/gz/tar/apk/woff/woff2/ttf/otf，未知回退 `application/octet-stream`；不用 `mime.TypeByExtension` 以避开宿主 mime.types/注册表差异）。`rust_fs.go` 的 `PutObject`/`UploadFromLocal`、`r2.go` 的 `UploadFromLocal`、`minio.go` 的 `PutObject`、`kodo.go` 的 `PutObject` 全部复用；`meta.OSSClient` 公共接口签名不变。
+  验证：`go build ./...`、`go test ./components/oss/internal/ -count=1` 全绿（新增 `TestContentTypeByObjectKey` 覆盖常见类型/大小写扩展名/未知/空键）；gofmt 干净。
+
 - **[2026-10-28] fix(oss): Step2a 复轮——校验哨兵 400 化 + Tag 桶级互斥 + minio 初始化根治（发版建议 minor）**。`meta/bucket_config.go`：新增 `ErrBucketConfigInvalid` 哨兵，所有 `Validate*` 失败错误以 `%w` 包裹（调用方 `errors.Is` 判定转 400，见 backend 到期线注释；与 `ErrBucketConfigUnsupported` 正交，单测钉死不混淆）。`internal/bucket_config.go`：Tag 读-改-写加包级按桶 key 互斥（`bucketTagLock`，锁在包级表而非 struct——`Bucket()` 派生绕锁问题根治注释；跨端点同名桶过度串行化仅降并发）；`s3PutBucketLifecycle` 整单写保护：桶上已有非 prefix 过滤规则（tag/size/And，控制台创建）时拒绝覆盖写并指去控制台（含清空路径，错误包哨兵供 backend 转 400）；Get 侧非 prefix 按空 prefix 回读的语义有损注释补齐；`asBucketConfigErr` 补 R2 错误码假设注释（未真机验证：NotImplemented/MethodNotAllowed，单测钉死真错误码 InvalidRequest 原样透出）。`internal/minio.go`：`sync.Once` 改 mutex 惰性持有者 `s3ConfigHolder`（构造失败不缓存、下次重试；`Bucket()` 经指针共享同一 holder，派生体不重复构造）；`minioClient` 删直连字段上的散装 s3 状态。单测新增 6 组（哨兵正交/MethodNotAllowed 映射/真错误不吞/非 prefix 整单+清空拒绝/prefix 旧规则放行/锁同一性/holder 指针共享）。
   验证：`go build/vet/test ./components/oss/...` 全绿；gofmt 干净（触碰文件；`components/oss/oss.go` 预存格式问题未动）。
 
