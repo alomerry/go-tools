@@ -27,3 +27,25 @@ func TestToAggregateFn(t *testing.T) {
 	assert.Equal(t, AggMean, ToAggregateFn("unknown"))
 	assert.Equal(t, AggMean, ToAggregateFn(""))
 }
+
+func TestIsValidTagOp(t *testing.T) {
+	assert.True(t, IsValidTagOp("="))
+	assert.True(t, IsValidTagOp("!="))
+	assert.True(t, IsValidTagOp("=~"))
+	assert.True(t, IsValidTagOp("!~"))
+	assert.False(t, IsValidTagOp(""))
+	assert.False(t, IsValidTagOp("~"))
+	assert.False(t, IsValidTagOp("=="))
+}
+
+func TestIsValidAggregateFn(t *testing.T) {
+	assert.True(t, IsValidAggregateFn("mean"))
+	assert.True(t, IsValidAggregateFn("max"))
+	assert.True(t, IsValidAggregateFn("min"))
+	assert.True(t, IsValidAggregateFn("last"))
+	assert.True(t, IsValidAggregateFn("sum"))
+	assert.True(t, IsValidAggregateFn("count"))
+	assert.False(t, IsValidAggregateFn(""))
+	assert.False(t, IsValidAggregateFn("avg"))
+	assert.False(t, IsValidAggregateFn(`mean) or (x`))
+}

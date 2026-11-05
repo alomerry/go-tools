@@ -473,3 +473,18 @@ func TestGetQueryWindowOverride(t *testing.T) {
 		assert.ErrorContains(t, err, "invalid flux duration")
 	})
 }
+
+func TestFluxRegexLiteral(t *testing.T) {
+	assert.Equal(t, `/^prod\/.*/`, FluxRegexLiteral(`^prod/.*`))
+	assert.Equal(t, `//`, FluxRegexLiteral("")) // 空 pattern 产出 //（Flux 注释开头），查询路径由 validateTags 拒绝
+	assert.Equal(t, `/a\nb/`, FluxRegexLiteral("a\nb"))
+}
+
+func TestIsValidFluxDuration(t *testing.T) {
+	for _, ok := range []string{"-1m", "5s", "30m", "24h", "1w", "1y", "500ms", "100us", "100µs", "-30s"} {
+		assert.True(t, IsValidFluxDuration(ok), "want valid: %q", ok)
+	}
+	for _, bad := range []string{"", "5", "5 s", `5s) or (x`, "abc", "1.5h"} {
+		assert.False(t, IsValidFluxDuration(bad), "want invalid: %q", bad)
+	}
+}
