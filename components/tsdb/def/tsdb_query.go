@@ -49,6 +49,12 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 	}
 
 	start, end := t.getTimeRange()
+	tags, err := t.getTags()
+	if err != nil {
+		// validateTags 已预编译全部正则并先行拦截，理论不可达；
+		// 防内部调用顺序被破坏时静默产出坏字面量，错误上抛
+		return "", err
+	}
 
 	query := fmt.Sprintf(`from(bucket: "%s")
 |> range(start: %s, stop: %s)
@@ -61,7 +67,7 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 		fluxEscape(t.Bucket),
 		start, end,
 		fluxEscape(t.Measurement),
-		t.getTags(),
+		tags,
 		t.getFields(),
 		t.getGroup(),
 		t.getInterval(),
@@ -158,10 +164,15 @@ func IsValidFluxDuration(s string) bool {
 
 // fluxEscape 转义 Flux 双引号字符串字面量中的特殊字符。Bucket/Measurement/
 // tag 等外部输入直接 Sprintf 进查询时，值内含 `"` 即可逃逸出字符串并拼接
-// 任意 Flux 表达式（等价 SQL 注入），此处统一转义。
+// 任意 Flux 表达式（等价 SQL 注入），此处统一转义：反斜杠/双引号守字符串
+// 边界，\n/\r/\t 控制字符改写转义序列（裸换行会使 Flux 解析失败），与
+// fluxRegexEscape 口径对齐。
 func fluxEscape(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	s = strings.ReplaceAll(s, "\r", `\r`)
+	s = strings.ReplaceAll(s, "\t", `\t`)
 	return s
 }
 
@@ -195,14 +206,21 @@ func fluxRegexEscape(pattern string) string {
 	return b.String()
 }
 
-// FluxRegexLiteral 将正则 pattern 安全嵌入为 Flux 正则字面量 /pattern/（含首尾
-// 斜杠），供查询拼装方（如 deck 的 schema search）复用：已转义序列原样保留、
+// FluxRegexLiteral 校验并安全嵌入正则 pattern 为 Flux 正则字面量 /pattern/
+// （含首尾斜杠），供查询拼装方（如 deck 的 schema search）复用。校验内收，
+// 调用方无需预编译：空 pattern（regexp.Compile("") 可通过但产物 `//` 是 Flux
+// 注释开头，属未闭合字面量类注入面）与非法正则（含尾部裸反斜杠产出未闭合
+// 字面量）一律返回 error，不产出坏字面量。防注入改写：已转义序列原样保留、
 // 裸 `/` 改写 `\/`、裸换行改写 `\n`/`\r`，防止 pattern 提前闭合字面量逃逸成
-// 任意表达式（注入面）。pattern 须先经 regexp.Compile 校验（查询构建路径
-// WithTag 已内置校验）；自拼查询的调用方自行保证 pattern 合法——空 pattern
-// 会产出 `//`（Flux 注释开头），非法 pattern 产出不被解析的残缺字面量。
-func FluxRegexLiteral(pattern string) string {
-	return "/" + fluxRegexEscape(pattern) + "/"
+// 任意表达式。
+func FluxRegexLiteral(pattern string) (string, error) {
+	if pattern == "" {
+		return "", fmt.Errorf("regex pattern must not be empty")
+	}
+	if _, err := regexp.Compile(pattern); err != nil {
+		return "", fmt.Errorf("invalid regex %q: %w", pattern, err)
+	}
+	return "/" + fluxRegexEscape(pattern) + "/", nil
 }
 
 // sortedTagKeys 返回按 key、op 排序的 tag 条件键，保证查询产物确定性。
@@ -272,9 +290,9 @@ func (t *TsdbQueryOptions) getAggregateFn() string {
 	return string(t.AggregateFn)
 }
 
-func (t *TsdbQueryOptions) getTags() string {
+func (t *TsdbQueryOptions) getTags() (string, error) {
 	if len(t.tags) == 0 {
-		return ""
+		return "", nil
 	}
 
 	// sortedTagKeys 消除 map 遍历乱序，查询产物（日志/单测/排查）确定性
@@ -288,9 +306,17 @@ func (t *TsdbQueryOptions) getTags() string {
 			case tsdb.OpNotEqual:
 				items = append(items, fmt.Sprintf(`r["%s"] != "%s"`, fluxEscape(ko.Key), fluxEscape(v)))
 			case tsdb.OpRegexMatch:
-				items = append(items, fmt.Sprintf(`r["%s"] =~ %s`, fluxEscape(ko.Key), FluxRegexLiteral(v)))
+				literal, err := FluxRegexLiteral(v)
+				if err != nil {
+					return "", fmt.Errorf("tag %q: %w", ko.Key, err)
+				}
+				items = append(items, fmt.Sprintf(`r["%s"] =~ %s`, fluxEscape(ko.Key), literal))
 			case tsdb.OpRegexNotMatch:
-				items = append(items, fmt.Sprintf(`r["%s"] !~ %s`, fluxEscape(ko.Key), FluxRegexLiteral(v)))
+				literal, err := FluxRegexLiteral(v)
+				if err != nil {
+					return "", fmt.Errorf("tag %q: %w", ko.Key, err)
+				}
+				items = append(items, fmt.Sprintf(`r["%s"] !~ %s`, fluxEscape(ko.Key), literal))
 			}
 		}
 
@@ -304,7 +330,7 @@ func (t *TsdbQueryOptions) getTags() string {
 		lines = append(lines, fmt.Sprintf("|> filter(fn: (r) => %s)", strings.Join(items, joiner)))
 	}
 
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), nil
 }
 
 func (t *TsdbQueryOptions) getFields() string {

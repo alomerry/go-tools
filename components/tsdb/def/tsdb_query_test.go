@@ -475,9 +475,36 @@ func TestGetQueryWindowOverride(t *testing.T) {
 }
 
 func TestFluxRegexLiteral(t *testing.T) {
-	assert.Equal(t, `/^prod\/.*/`, FluxRegexLiteral(`^prod/.*`))
-	assert.Equal(t, `//`, FluxRegexLiteral("")) // 空 pattern 产出 //（Flux 注释开头），查询路径由 validateTags 拒绝
-	assert.Equal(t, `/a\nb/`, FluxRegexLiteral("a\nb"))
+	literal, err := FluxRegexLiteral(`^prod/.*`)
+	assert.NoError(t, err)
+	assert.Equal(t, `/^prod\/.*/`, literal)
+
+	literal, err = FluxRegexLiteral("a\nb")
+	assert.NoError(t, err)
+	assert.Equal(t, `/a\nb/`, literal)
+
+	// 空 pattern 编译可通过但产物 // 是 Flux 注释开头（未闭合字面量类注入面），显式拒绝
+	literal, err = FluxRegexLiteral("")
+	assert.ErrorContains(t, err, "must not be empty")
+	assert.Empty(t, literal)
+
+	// 编译校验内收：非法正则（含尾部裸反斜杠产出未闭合字面量）返回 error，不产出坏字面量
+	for _, bad := range []string{"a(b", "*x", `a\`} {
+		literal, err = FluxRegexLiteral(bad)
+		assert.ErrorContains(t, err, "invalid regex", "pattern %q", bad)
+		assert.Empty(t, literal)
+	}
+}
+
+func TestFluxEscape(t *testing.T) {
+	assert.Equal(t, `a\"b`, fluxEscape(`a"b`))
+	assert.Equal(t, `a\\b`, fluxEscape(`a\b`))
+	// 控制字符改写转义序列，裸换行不再破坏单行字面量
+	assert.Equal(t, `a\nb`, fluxEscape("a\nb"))
+	assert.Equal(t, `a\rb`, fluxEscape("a\rb"))
+	assert.Equal(t, `a\tb`, fluxEscape("a\tb"))
+	// 用户字面反斜杠+字母序列先行反斜杠转义，不会被控制字符规则二次改写
+	assert.Equal(t, `\\n`, fluxEscape(`\n`))
 }
 
 func TestIsValidFluxDuration(t *testing.T) {
