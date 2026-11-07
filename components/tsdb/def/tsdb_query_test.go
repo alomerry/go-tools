@@ -433,6 +433,125 @@ func TestGetQueryAggregateFn(t *testing.T) {
 	}
 }
 
+// TestGetQueryEmptyFill 三态空值窗口处理（monitor-opt2，类 Grafana fill）的
+// 查询产物快照：CONNECT（含未指定零值）与历史产物逐字节一致（零回归基线）、
+// ZERO 追加 createEmpty:true + fill、GAP 仅 createEmpty:true（null 透传）。
+func TestGetQueryEmptyFill(t *testing.T) {
+	// connectQuery 是 CONNECT（= 未指定缺省）语义下 bucket/measurement/fields
+	// 固定输入的完整查询产物，逐字节断言防止任何模板改动悄悄改变历史行为。
+	connectQuery := `from(bucket: "homelab")
+|> range(start: -1m, stop: now())
+|> filter(fn: (r) => r._measurement == "cpu.usage")
+
+|> filter(fn: (r) => contains(value: r._field, set: ["usage"]))
+|> group(columns: ["_field"])
+|> aggregateWindow(every: 5s, fn: mean, createEmpty: false)
+`
+
+	tests := []struct {
+		name    string
+		fill    tsdb.EmptyFill
+		want    string
+		wantErr string
+	}{
+		{
+			name: "unspecified zero value keeps historical query byte-identical",
+			fill: "",
+			want: connectQuery,
+		},
+		{
+			name: "explicit connect keeps historical query byte-identical",
+			fill: tsdb.EmptyFillConnect,
+			want: connectQuery,
+		},
+		{
+			name: "zero emits createEmpty true plus fill 0",
+			fill: tsdb.EmptyFillZero,
+			want: `from(bucket: "homelab")
+|> range(start: -1m, stop: now())
+|> filter(fn: (r) => r._measurement == "cpu.usage")
+
+|> filter(fn: (r) => contains(value: r._field, set: ["usage"]))
+|> group(columns: ["_field"])
+|> aggregateWindow(every: 5s, fn: mean, createEmpty: true)
+|> fill(column: "_value", value: 0.0)
+`,
+		},
+		{
+			name: "gap emits createEmpty true without fill",
+			fill: tsdb.EmptyFillGap,
+			want: `from(bucket: "homelab")
+|> range(start: -1m, stop: now())
+|> filter(fn: (r) => r._measurement == "cpu.usage")
+
+|> filter(fn: (r) => contains(value: r._field, set: ["usage"]))
+|> group(columns: ["_field"])
+|> aggregateWindow(every: 5s, fn: mean, createEmpty: true)
+`,
+		},
+		{
+			name:    "unknown fill rejected",
+			fill:    tsdb.EmptyFill("zero"),
+			wantErr: "unsupported empty fill",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query := new(TsdbQueryOptions)
+			query.Apply(
+				WithBucket("homelab"),
+				WithMeasurement("cpu.usage"),
+				WithFields("usage"),
+				WithEmptyFill(tt.fill),
+			)
+
+			str, err := query.GetQuery()
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.want, str)
+		})
+	}
+
+	t.Run("zero with manual window and aggregate fn", func(t *testing.T) {
+		query := new(TsdbQueryOptions)
+		query.Apply(
+			WithBucket("homelab"),
+			WithMeasurement("cpu.usage"),
+			WithFields("usage"),
+			WithInterval("30s"),
+			WithAggregateFn(tsdb.AggCount),
+			WithEmptyFill(tsdb.EmptyFillZero),
+		)
+
+		str, err := query.GetQuery()
+		assert.NoError(t, err)
+		assert.Contains(t, str, `|> aggregateWindow(every: 30s, fn: count, createEmpty: true)`)
+		assert.Contains(t, str, `|> fill(column: "_value", value: 0.0)`)
+	})
+
+	t.Run("raw flux query bypasses empty fill entirely", func(t *testing.T) {
+		// 原始 Flux query 模式（WithQuery 非空）直接透传用户脚本：createEmpty/
+		// fill 均不注入，即使指定 ZERO 也不改写（原始查询网格不可知，fill 语义
+		// 交给脚本作者，与纪要 AC12 口径一致）。
+		raw := `from(bucket: "homelab") |> range(start: -1m)`
+		query := new(TsdbQueryOptions)
+		query.Apply(
+			WithBucket("homelab"),
+			WithMeasurement("cpu.usage"),
+			WithQuery(raw),
+			WithEmptyFill(tsdb.EmptyFillZero),
+		)
+
+		str, err := query.GetQuery()
+		assert.NoError(t, err)
+		assert.Equal(t, raw, str)
+	})
+}
+
 func TestGetQueryWindowOverride(t *testing.T) {
 	t.Run("manual window overrides auto interval", func(t *testing.T) {
 		query := new(TsdbQueryOptions)

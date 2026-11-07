@@ -31,6 +31,10 @@ type TsdbQueryOptions struct {
 	Query       *string
 	Interval    string
 	AggregateFn tsdb.AggregateFn
+	// EmptyFill 空值窗口处理策略（connect/zero/gap，见 tsdb.EmptyFill）。
+	// 零值 "" = 未指定 = CONNECT（createEmpty: false，与历史查询产物逐字节
+	// 一致，零回归基线）；合法性由 validateEmptyFill 保证。
+	EmptyFill tsdb.EmptyFill
 }
 
 func (t *TsdbQueryOptions) Apply(opts ...func(*TsdbQueryOptions)) {
@@ -62,7 +66,7 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 %s
 %s
 %s
-|> aggregateWindow(every: %s, fn: %s, createEmpty: false)
+|> aggregateWindow(every: %s, fn: %s, createEmpty: %s)%s
 `,
 		fluxEscape(t.Bucket),
 		start, end,
@@ -72,6 +76,8 @@ func (t *TsdbQueryOptions) GetQuery() (string, error) {
 		t.getGroup(),
 		t.getInterval(),
 		t.getAggregateFn(),
+		t.getCreateEmpty(),
+		t.getFill(),
 	)
 
 	if env.Local() {
@@ -99,6 +105,10 @@ func (t *TsdbQueryOptions) validate() error {
 		return err
 	}
 
+	if err := t.validateEmptyFill(); err != nil {
+		return err
+	}
+
 	return t.validateTags()
 }
 
@@ -108,6 +118,16 @@ func (t *TsdbQueryOptions) validateAggregateFn() error {
 	// 零值视为未指定（缺省 mean），白名单外一律拒绝（fn 以裸字面量拼进查询）
 	if t.AggregateFn != "" && !tsdb.IsValidAggregateFn(string(t.AggregateFn)) {
 		return fmt.Errorf("unsupported aggregate fn %q", t.AggregateFn)
+	}
+	return nil
+}
+
+// validateEmptyFill 白名单校验空值窗口处理策略：EmptyFill 决定 createEmpty
+// 与是否追加 fill 段，未知值是笔误（会静默退化成缺省 CONNECT），一律拒绝；
+// 零值 "" 视为未指定（缺省 CONNECT，历史口径）。
+func (t *TsdbQueryOptions) validateEmptyFill() error {
+	if t.EmptyFill != "" && !tsdb.IsValidEmptyFill(string(t.EmptyFill)) {
+		return fmt.Errorf("unsupported empty fill %q", t.EmptyFill)
 	}
 	return nil
 }
@@ -290,6 +310,30 @@ func (t *TsdbQueryOptions) getAggregateFn() string {
 	return string(t.AggregateFn)
 }
 
+// getCreateEmpty 返回 aggregateWindow 的 createEmpty 字面量：ZERO/GAP 需要
+// 引擎为空窗口产出行（true），CONNECT（含未指定零值）保持历史口径 false
+// ——查询产物逐字节一致，老调用方零回归。
+func (t *TsdbQueryOptions) getCreateEmpty() string {
+	switch t.EmptyFill {
+	case tsdb.EmptyFillZero, tsdb.EmptyFillGap:
+		return "true"
+	default:
+		return "false"
+	}
+}
+
+// getFill 返回 aggregateWindow 之后追加的 fill 段（含前导换行）：仅 ZERO
+// 需要 `fill(column: "_value", value: 0.0)`（_value 列为 float，补 0 用
+// float 字面量；fill 按 group 后的每张表独立生效，空窗口 null 全部补 0）。
+// CONNECT/GAP 返回空串——GAP 的空窗口 _value 为 null，逐层透传给前端断线。
+func (t *TsdbQueryOptions) getFill() string {
+	if t.EmptyFill == tsdb.EmptyFillZero {
+		return `
+|> fill(column: "_value", value: 0.0)`
+	}
+	return ""
+}
+
 func (t *TsdbQueryOptions) getTags() (string, error) {
 	if len(t.tags) == 0 {
 		return "", nil
@@ -389,6 +433,16 @@ func WithTag(key string, op tsdb.TagOp, values ...string) func(*TsdbQueryOptions
 func WithAggregateFn(fn tsdb.AggregateFn) func(*TsdbQueryOptions) {
 	return func(opts *TsdbQueryOptions) {
 		opts.AggregateFn = fn
+	}
+}
+
+// WithEmptyFill 指定 aggregateWindow 空值窗口处理策略（connect/zero/gap，见
+// tsdb.EmptyFill 常量）；未指定或缺省零值时按 CONNECT（createEmpty: false，
+// 历史口径）。未知值由 GetQuery/Query 出口校验报错。原始 Flux query 模式
+// （WithQuery 非空）直接透传用户脚本，本选项不生效（不做 fill）。
+func WithEmptyFill(fill tsdb.EmptyFill) func(*TsdbQueryOptions) {
+	return func(opts *TsdbQueryOptions) {
+		opts.EmptyFill = fill
 	}
 }
 
