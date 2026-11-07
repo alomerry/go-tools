@@ -114,6 +114,42 @@ func TestParseQueryResultsFieldName(t *testing.T) {
 // column (the pre-fix `group(columns: [])` output), record.Field() is empty and
 // the assembler falls back to "default_count". The fixed query path must never
 // reach this fallback; keeping the test documents the root cause.
+// TestParseQueryResultsNullValuePassthrough GAP（createEmpty: true 不 fill）
+// 的空窗口透传证据：InfluxDB 对 createEmpty 产出的空窗口以 null _value 返回
+// （CSV 中该列为空串），行解析必须把它保留为 nil 单元格（不是 0、不是跳行、
+// 不是报错），下游 protojson 序列化（AnyToStructValue(nil) → NullValue →
+// JSON null）才能让前端以 null 断线渲染。
+func TestParseQueryResultsNullValuePassthrough(t *testing.T) {
+	csv := `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string
+#group,false,false,true,true,false,true,true,true
+#default,_result,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement
+,,0,2026-08-16T00:00:00Z,2026-08-16T00:05:00Z,2026-08-16T00:00:00Z,0.5,usage,cpu.usage
+,,0,2026-08-16T00:00:00Z,2026-08-16T00:05:00Z,2026-08-16T00:00:05Z,,usage,cpu.usage
+,,0,2026-08-16T00:00:00Z,2026-08-16T00:05:00Z,2026-08-16T00:00:10Z,0.7,usage,cpu.usage
+`
+	options := new(def.TsdbQueryOptions)
+	options.Apply(
+		def.WithBucket("homelab"),
+		def.WithMeasurement("cpu.usage"),
+		def.WithFields("usage"),
+	)
+
+	res, err := parseQueryResults(options, newQueryTableResult(t, csv))
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+
+	got := res[0]
+	require.Len(t, got.Values, 3)
+	// 空窗口行照常产出（时间列在），_value 保持 nil 逐层透传。
+	assert.Equal(t, int64(1786838400), got.Values[0][0])
+	assert.Equal(t, 0.5, got.Values[0][1])
+	assert.Equal(t, int64(1786838405), got.Values[1][0])
+	assert.Nil(t, got.Values[1][1])
+	assert.Equal(t, int64(1786838410), got.Values[2][0])
+	assert.Equal(t, 0.7, got.Values[2][1])
+}
+
 func TestParseQueryResultsDefaultCountFallback(t *testing.T) {
 	csv := `#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string
 #group,false,false,true,true,false,true,true
